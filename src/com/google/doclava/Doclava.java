@@ -87,7 +87,7 @@ public class Doclava {
   public static String outputPathResourcesDir;
   public static String outputPathHtmlDirs;
   public static String outputPathHtmlDir2;
-
+  /* Javadoc output directory and included in url path */
   public static String javadocDir = "reference/";
   public static String htmlExtension;
 
@@ -196,6 +196,8 @@ public class Doclava {
         mHDFData.add(new String[] {a[1], a[2]});
       } else if (a[0].equals("-knowntags")) {
         knownTagsFiles.add(a[1]);
+      } else if (a[0].equals("-apidocsdir")) {
+        javadocDir = a[1];
       } else if (a[0].equals("-toroot")) {
         ClearPage.toroot = a[1];
       } else if (a[0].equals("-samplecode")) {
@@ -210,7 +212,7 @@ public class Doclava {
         ClearPage.htmlDirs = inputPathHtmlDirs;
       //the destination output path for additional htmldir
       } else if (a[0].equals("-htmldir2")) {
-          if (a[2].equals("default")) {
+        if (a[2].equals("default")) {
           inputPathHtmlDir2.add(a[1]);
         } else {
           inputPathHtmlDir2.add(a[1]);
@@ -335,7 +337,9 @@ public class Doclava {
           DEVSITE_STATIC_ONLY = true;
           System.out.println("  ... Generating static html only for devsite");
         }
-        yamlNavFile = "_book.yaml";
+        if (yamlNavFile == null) {
+          yamlNavFile = "_book.yaml";
+        }
       }
     }
 
@@ -624,6 +628,9 @@ public class Doclava {
     if (option.equals("-knowntags")) {
       return 2;
     }
+    if (option.equals("-apidocsdir")) {
+      return 2;
+    }
     if (option.equals("-toroot")) {
       return 2;
     }
@@ -816,8 +823,6 @@ public class Doclava {
 
     return data;
   }
-
-
 
   public static Data makePackageHDF() {
     Data data = makeHDF();
