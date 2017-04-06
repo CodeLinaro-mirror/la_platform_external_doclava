@@ -85,6 +85,7 @@ if:devsite ?>
           else ?><?cs
             if:reference.testSupport ?>/reference/android/support/test<?cs
             elif:reference.wearableSupport ?>/reference/android/support/wearable<?cs
+            elif:reference.androidSupport ?>/reference/android/support<?cs
             elif:reference.constraintSupport ?>/reference/android/support/constraint<?cs
             elif:(guide||develop||training||reference||tools||sdk||samples) ?><?cs
               if:guide ?>/guide<?cs
@@ -242,4 +243,9 @@ if:android.whichdoc != 'online' ?>http:<?cs
   ga('universal.send', 'pageview'); // Send page view for new tracker.
 </script><?cs /if ?><?cs
 # END if/else !devsite ?>
+
+<?cs if:css.path ?><?cs
+#include custom stylesheet ?>
+<link rel="stylesheet" href="<?cs var:css.path ?>"><?cs
+/if ?>
 </head>
