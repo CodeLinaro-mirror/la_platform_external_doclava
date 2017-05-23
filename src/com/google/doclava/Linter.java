@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc.
+ * Copyright (C) 2017 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,24 @@
 
 package com.google.doclava;
 
-public interface ContainerInfo {
-  public String qualifiedName();
+public interface Linter {
+  public void lintField(FieldInfo field);
+  public void lintMethod(MethodInfo method);
+  public void lintParameter(MethodInfo method, ParameterInfo param, SourcePositionInfo position,
+      TagInfo tag);
+}
 
-  public default boolean qualifiedNameMatches(String prefix, String suffix) {
-    final String qualifiedName = qualifiedName();
-    return (qualifiedName.startsWith(prefix) && qualifiedName.endsWith(suffix));
+class EmptyLinter implements Linter {
+  @Override
+  public void lintField(FieldInfo field) {
   }
 
-  public boolean checkLevel();
+  @Override
+  public void lintMethod(MethodInfo method) {
+  }
+
+  @Override
+  public void lintParameter(MethodInfo method, ParameterInfo param, SourcePositionInfo position,
+      TagInfo tag) {
+  }
 }
