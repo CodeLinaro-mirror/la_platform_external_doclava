@@ -20,41 +20,102 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class AndroidAuxSource implements AuxSource {
-  private static final int TYPE_METHOD = 0;
-  private static final int TYPE_FIELD = 1;
+  private static final int TYPE_FIELD = 0;
+  private static final int TYPE_METHOD = 1;
   private static final int TYPE_PARAM = 2;
   private static final int TYPE_RETURN = 3;
 
   @Override
+  public TagInfo[] classAuxTags(ClassInfo clazz) {
+    if (hasSuppress(clazz.annotations())) return TagInfo.EMPTY_ARRAY;
+    ArrayList<TagInfo> tags = new ArrayList<>();
+    for (AnnotationInstanceInfo annotation : clazz.annotations()) {
+      // Document system services
+      if (annotation.type().qualifiedNameMatches("android", "annotation.SystemService")) {
+        ArrayList<TagInfo> valueTags = new ArrayList<>();
+        valueTags
+            .add(new ParsedTagInfo("", "",
+                "{@link android.content.Context#getSystemService(Class)"
+                    + " Context.getSystemService(Class)}",
+                null, SourcePositionInfo.UNKNOWN));
+        valueTags.add(new ParsedTagInfo("", "",
+            "{@code " + clazz.name() + ".class}", null,
+            SourcePositionInfo.UNKNOWN));
+
+        ClassInfo contextClass = annotation.type().findClass("android.content.Context");
+        for (AnnotationValueInfo val : annotation.elementValues()) {
+          switch (val.element().name()) {
+            case "value":
+              final String expected = String.valueOf(val.value());
+              for (FieldInfo field : contextClass.fields()) {
+                if (field.isHiddenOrRemoved()) continue;
+                if (String.valueOf(field.constantValue()).equals(expected)) {
+                  valueTags.add(new ParsedTagInfo("", "",
+                      "{@link android.content.Context#getSystemService(String)"
+                          + " Context.getSystemService(String)}",
+                      null, SourcePositionInfo.UNKNOWN));
+                  valueTags.add(new ParsedTagInfo("", "",
+                      "{@link android.content.Context#" + field.name()
+                          + " Context." + field.name() + "}",
+                      null, SourcePositionInfo.UNKNOWN));
+                }
+              }
+              break;
+          }
+        }
+
+        Map<String, String> args = new HashMap<>();
+        tags.add(new AuxTagInfo("@service", "@service", SourcePositionInfo.UNKNOWN, args,
+            valueTags.toArray(TagInfo.getArray(valueTags.size()))));
+      }
+    }
+    return tags.toArray(TagInfo.getArray(tags.size()));
+  }
+
+  @Override
   public TagInfo[] fieldAuxTags(FieldInfo field) {
     if (hasSuppress(field)) return TagInfo.EMPTY_ARRAY;
-    return auxTags(TYPE_FIELD, field.annotations());
+    return auxTags(TYPE_FIELD, field.annotations(), toString(field.inlineTags()));
   }
 
   @Override
   public TagInfo[] methodAuxTags(MethodInfo method) {
     if (hasSuppress(method)) return TagInfo.EMPTY_ARRAY;
-    return auxTags(TYPE_METHOD, method.annotations());
+    return auxTags(TYPE_METHOD, method.annotations(), toString(method.inlineTags().tags()));
   }
 
   @Override
-  public TagInfo[] paramAuxTags(MethodInfo method, ParameterInfo param) {
+  public TagInfo[] paramAuxTags(MethodInfo method, ParameterInfo param, String comment) {
     if (hasSuppress(method)) return TagInfo.EMPTY_ARRAY;
     if (hasSuppress(param.annotations())) return TagInfo.EMPTY_ARRAY;
-    return auxTags(TYPE_PARAM, param.annotations());
+    return auxTags(TYPE_PARAM, param.annotations(), new String[] { comment });
   }
 
   @Override
   public TagInfo[] returnAuxTags(MethodInfo method) {
     if (hasSuppress(method)) return TagInfo.EMPTY_ARRAY;
-    return auxTags(TYPE_RETURN, method.annotations());
+    return auxTags(TYPE_RETURN, method.annotations(), toString(method.returnTags().tags()));
   }
 
-  private static TagInfo[] auxTags(int type, List<AnnotationInstanceInfo> annotations) {
+  private static TagInfo[] auxTags(int type, List<AnnotationInstanceInfo> annotations,
+      String[] comment) {
     ArrayList<TagInfo> tags = new ArrayList<>();
     for (AnnotationInstanceInfo annotation : annotations) {
+      // Ignore null-related annotations when docs already mention
+      if (annotation.type().qualifiedNameMatches("android", "annotation.NonNull")
+          || annotation.type().qualifiedNameMatches("android", "annotation.Nullable")) {
+        boolean mentionsNull = false;
+        for (String c : comment) {
+          mentionsNull |= Pattern.compile("\\bnull\\b").matcher(c).find();
+        }
+        if (mentionsNull) {
+          continue;
+        }
+      }
+
       // Blindly include docs requested by annotations
       ParsedTagInfo[] docTags = ParsedTagInfo.EMPTY_ARRAY;
       switch (type) {
@@ -189,6 +250,14 @@ public class AndroidAuxSource implements AuxSource {
       }
     }
     return tags.toArray(TagInfo.getArray(tags.size()));
+  }
+
+  private static String[] toString(TagInfo[] tags) {
+    final String[] res = new String[tags.length];
+    for (int i = 0; i < res.length; i++) {
+      res[i] = tags[i].text();
+    }
+    return res;
   }
 
   private static boolean hasSuppress(MemberInfo member) {
