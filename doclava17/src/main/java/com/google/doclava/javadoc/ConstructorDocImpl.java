@@ -25,8 +25,11 @@
 
 package com.google.doclava.javadoc;
 
+import com.google.doclava.annotation.Unused;
+import com.google.doclava.annotation.Used;
 import com.sun.javadoc.ConstructorDoc;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 
 class ConstructorDocImpl extends ExecutableMemberDocImpl implements ConstructorDoc {
 
@@ -34,19 +37,33 @@ class ConstructorDocImpl extends ExecutableMemberDocImpl implements ConstructorD
         super(e, context);
     }
 
+    static ConstructorDocImpl create(ExecutableElement e, Context context) {
+        return context.caches.constructors.computeIfAbsent(e,
+                el -> new ConstructorDocImpl(el, context));
+    }
+
     @Override
+    @Unused(implemented = true)
     public boolean isConstructor() {
         return true;
     }
 
     @Override
+    @Used(implemented = true)
     public String name() {
-        throw new UnsupportedOperationException("not yet implemented");
+        return executableElement.getEnclosingElement().getSimpleName().toString();
     }
 
     @Override
+    @Used(implemented = true)
     public String qualifiedName() {
-        throw new UnsupportedOperationException("not yet implemented");
+        var enclosingClass = executableElement.getEnclosingElement();
+        return switch (enclosingClass.getKind()) {
+            case CLASS, INTERFACE, ANNOTATION_TYPE, ENUM ->
+                    ((TypeElement) enclosingClass).getQualifiedName().toString();
+            default -> throw new UnsupportedOperationException("Expected CLASS, INTERFACE, "
+                    + "ANNOTATION_TYPE or ENUM, but got " + enclosingClass.getKind());
+        };
     }
 
 }

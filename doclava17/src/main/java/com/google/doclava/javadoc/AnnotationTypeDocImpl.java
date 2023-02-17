@@ -25,16 +25,22 @@
 
 package com.google.doclava.javadoc;
 
+import com.google.doclava.annotation.Unused;
+import com.google.doclava.annotation.Used;
 import com.sun.javadoc.AnnotationTypeDoc;
 import com.sun.javadoc.AnnotationTypeElementDoc;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.ElementFilter;
 
 class AnnotationTypeDocImpl extends ClassDocImpl implements AnnotationTypeDoc {
 
     protected AnnotationTypeDocImpl(TypeElement c, Context context) {
         super(c, context);
     }
+
+    // Cached fields
+    private AnnotationTypeElementDoc[] elements;
 
     static AnnotationTypeDocImpl create(TypeElement e, Context context) {
         if (e.getKind() != ElementKind.ANNOTATION_TYPE) {
@@ -46,17 +52,32 @@ class AnnotationTypeDocImpl extends ClassDocImpl implements AnnotationTypeDoc {
     }
 
     @Override
+    @Used(implemented = true)
     public AnnotationTypeElementDoc[] elements() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (elements == null) {
+            elements = ElementFilter.methodsIn(typeElement.getEnclosedElements())
+                    .stream()
+                    .map(exe -> AnnotationMethodDocImpl.create(exe, context))
+                    .toArray(AnnotationTypeElementDoc[]::new);
+        }
+        return elements;
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isAnnotationType() {
         return true;
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isInterface() {
         return false;
+    }
+
+    @Override
+    @Unused(implemented = true)
+    public AnnotationTypeDoc asAnnotationTypeDoc() {
+        return this;
     }
 }
