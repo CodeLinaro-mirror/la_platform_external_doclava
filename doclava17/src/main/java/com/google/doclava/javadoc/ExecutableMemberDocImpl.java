@@ -25,6 +25,8 @@
 
 package com.google.doclava.javadoc;
 
+import com.google.doclava.annotation.Unused;
+import com.google.doclava.annotation.Used;
 import com.sun.javadoc.ClassDoc;
 import com.sun.javadoc.ExecutableMemberDoc;
 import com.sun.javadoc.ParamTag;
@@ -34,14 +36,24 @@ import com.sun.javadoc.ThrowsTag;
 import com.sun.javadoc.Type;
 import com.sun.javadoc.TypeVariable;
 import java.lang.reflect.Modifier;
+import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements.Origin;
 
 abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> implements
         ExecutableMemberDoc {
 
     protected final ExecutableElement executableElement;
+
+    // Cached fields
+    private ClassDoc[] thrownExceptions;
+    private Parameter[] parameters;
+    private String signature;
+    private String flatSignature;
+    private TypeVariable[] typeParameters;
 
     protected ExecutableMemberDocImpl(ExecutableElement e, Context context) {
         super(e, context);
@@ -49,48 +61,55 @@ abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> 
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isNative() {
         return (reflectModifiers & Modifier.NATIVE) != 0;
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isSynchronized() {
         return (reflectModifiers & Modifier.SYNCHRONIZED) != 0;
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isVarArgs() {
         return executableElement.isVarArgs();
     }
 
-    @Override
+    @Used(implemented = true)
     public boolean isSynthetic() {
-        throw new UnsupportedOperationException("not yet implemented");
+        return context.environment.getElementUtils()
+                .getOrigin(executableElement) == Origin.SYNTHETIC;
     }
 
     @Override
+    @Used(implemented = true)
     public boolean isIncluded() {
-        throw new UnsupportedOperationException("not yet implemented");
+        return context.environment.isIncluded(executableElement);
     }
 
     @Override
+    @Unused
     public ThrowsTag[] throwsTags() {
         throw new UnsupportedOperationException("not yet implemented");
     }
 
     @Override
+    @Unused
     public ParamTag[] paramTags() {
         throw new UnsupportedOperationException("not yet implemented");
     }
 
     @Override
+    @Unused
     public ParamTag[] typeParamTags() {
         throw new UnsupportedOperationException("not yet implemented");
     }
 
-    private ClassDoc[] thrownExceptions;
-
     @Override
+    @Used(implemented = true)
     public ClassDoc[] thrownExceptions() {
         if (thrownExceptions == null) {
             thrownExceptions = executableElement.getThrownTypes()
@@ -115,37 +134,74 @@ abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> 
     }
 
     @Override
+    @Unused
     public Type[] thrownExceptionTypes() {
         throw new UnsupportedOperationException("not yet implemented");
     }
 
     @Override
+    @Used(implemented = true)
     public Parameter[] parameters() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (parameters == null) {
+            parameters = executableElement.getParameters()
+                    .stream()
+                    .map(variableElement -> ParameterImpl.create(variableElement, context))
+                    .toArray(ParameterImpl[]::new);
+        }
+        return parameters;
     }
 
     @Override
+    @Unused
     public Type receiverType() {
         throw new UnsupportedOperationException("not yet implemented");
     }
 
     @Override
+    @Used(implemented = true)
     public TypeVariable[] typeParameters() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (typeParameters == null) {
+            typeParameters = executableElement.getTypeParameters()
+                    .stream()
+                    .map(tpe -> TypeVariableImpl.create(tpe.asType(), context))
+                    .toArray(TypeVariable[]::new);
+        }
+        return typeParameters;
     }
 
     @Override
+    @Used(implemented = true)
     public String signature() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (signature == null) {
+             String params = executableElement.getParameters()
+                     .stream()
+                     .map(param -> param.asType().toString())
+                     .collect(Collectors.joining(", "));
+            signature = "(" + params + ")";
+        }
+        return signature;
     }
 
     @Override
+    @Used(implemented = true)
     public String flatSignature() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (flatSignature == null) {
+            String params = executableElement.getParameters()
+                    .stream()
+                    .map(param -> {
+                        TypeMirror mirror = param.asType();
+                        Type t = TypeImpl.create(mirror, context);
+                        return t.simpleTypeName();
+                    })
+                    .collect(Collectors.joining(", "));
+            flatSignature = "(" + params + ")";
+        }
+        return flatSignature;
     }
 
     @Override
+    @Used(implemented = true)
     public SourcePosition position() {
-        throw new UnsupportedOperationException("not yet implemented");
+        return SourcePositionImpl.STUB;
     }
 }
