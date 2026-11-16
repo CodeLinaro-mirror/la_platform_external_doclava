@@ -19,6 +19,7 @@ package com.google.doclava;
 import static java.util.stream.Collectors.toList;
 
 import com.google.clearsilver.jsilver.JSilver;
+import com.google.clearsilver.jsilver.JSilverOptions;
 import com.google.clearsilver.jsilver.data.Data;
 import com.google.clearsilver.jsilver.resourceloader.ClassResourceLoader;
 import com.google.clearsilver.jsilver.resourceloader.CompositeResourceLoader;
@@ -1592,6 +1593,7 @@ public class Doclava implements Doclet {
     Converter.makeInfo(root);
 
     if (generateDocs) {
+      ClearPage.clearTemplateCache();
       ClearPage.addBundledTemplateDir("assets/customizations");
       ClearPage.addBundledTemplateDir("assets/templates");
 
@@ -1614,7 +1616,9 @@ public class Doclava implements Doclet {
       }
 
       ResourceLoader compositeResourceLoader = new CompositeResourceLoader(resourceLoaders);
-      jSilver = new JSilver(compositeResourceLoader);
+      jSilver =
+          new JSilver(
+              compositeResourceLoader, new JSilverOptions().setUseOutputBufferPool(true));
 
       if (!Doclava.readTemplateSettings()) {
         return false;
@@ -2057,7 +2061,7 @@ public class Doclava implements Doclet {
       }
 
       ResourceLoader loader = new FileSystemResourceLoader(f);
-      JSilver js = new JSilver(loader);
+      JSilver js = new JSilver(loader, new JSilverOptions().setUseOutputBufferPool(true));
       writeDirectory(f, "", js);
     }
   }
@@ -2073,7 +2077,7 @@ public class Doclava implements Doclet {
         }
 
         ResourceLoader loader = new FileSystemResourceLoader(f);
-        JSilver js = new JSilver(loader);
+        JSilver js = new JSilver(loader, new JSilverOptions().setUseOutputBufferPool(true));
         writeDirectory(f, outputPathResourcesDir, js);
       } catch(Exception e) {
         System.err.println("Could not copy resourcesdir: " + e);
