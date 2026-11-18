@@ -31,7 +31,6 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.SimpleAnnotationValueVisitor14;
@@ -118,13 +117,7 @@ class AnnotationValueImpl implements AnnotationValue {
 
                 @Override
                 public Object visitType(TypeMirror m, Context ctx) {
-                    var e = ctx.environment.getTypeUtils().asElement(m);
-                    return switch (e.getKind()) {
-                        case CLASS, INTERFACE, ENUM -> ClassDocImpl.create((TypeElement) e, ctx);
-                        case ANNOTATION_TYPE -> AnnotationTypeDocImpl.create((TypeElement) e, ctx);
-                        default -> throw new UnsupportedOperationException(
-                                e.getKind() + " is not not yet implemented");
-                    };
+                    return TypeImpl.create(m, ctx);
                 }
 
                 @Override
