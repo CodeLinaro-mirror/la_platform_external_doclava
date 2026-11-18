@@ -187,6 +187,7 @@ public class ClassInfo extends DocInfo implements ContainerInfo, Comparable, Sco
     mSuperclassesWithTypes = null;
     mInterfacesWithTypes = null;
     mAllInterfacesWithTypes = null;
+    clearCaches();
 
     Collections.sort(mEnumConstants, FieldInfo.comparator);
     Collections.sort(mInnerClasses, ClassInfo.comparator);
@@ -1362,16 +1363,11 @@ public class ClassInfo extends DocInfo implements ContainerInfo, Comparable, Sco
     TagInfo.makeHDF(data, "class.deprecated", deprecatedTags());
 
     // known subclasses
-    TreeMap<String, ClassInfo> direct = new TreeMap<String, ClassInfo>();
-    TreeMap<String, ClassInfo> indirect = new TreeMap<String, ClassInfo>();
-    Collection<ClassInfo> all = Converter.rootClasses();
-    for (ClassInfo cl : all) {
-      if (cl.superclass() != null && cl.superclass().equals(this)) {
-        direct.put(cl.name(), cl);
-      } else if (cl.isDerivedFrom(this)) {
-        indirect.put(cl.name(), cl);
-      }
-    }
+    ensureSubclassesPrecomputed();
+    TreeMap<String, ClassInfo> direct =
+        sDirectSubclasses.getOrDefault(this, new TreeMap<String, ClassInfo>());
+    TreeMap<String, ClassInfo> indirect =
+        sIndirectSubclasses.getOrDefault(this, new TreeMap<String, ClassInfo>());
     // direct
     i = 0;
     for (ClassInfo cl : direct.values()) {
@@ -1542,6 +1538,78 @@ public class ClassInfo extends DocInfo implements ContainerInfo, Comparable, Sco
         makeInheritedHDF(data, i, superCtp);
         i++;
       }
+    }
+  }
+
+  private static Map<ClassInfo, TreeMap<String, ClassInfo>> sDirectSubclasses;
+  private static Map<ClassInfo, TreeMap<String, ClassInfo>> sIndirectSubclasses;
+
+  static synchronized void clearCaches() {
+    sDirectSubclasses = null;
+    sIndirectSubclasses = null;
+  }
+
+  /**
+   * Precomputes direct and indirect subclasses for all classes by walking up each class's
+   * superclass and interface ancestors.
+   */
+  private static synchronized void ensureSubclassesPrecomputed() {
+    if (sDirectSubclasses != null && sIndirectSubclasses != null) {
+      return;
+    }
+    Map<ClassInfo, TreeMap<String, ClassInfo>> direct = new HashMap<>();
+    Map<ClassInfo, TreeMap<String, ClassInfo>> indirect = new HashMap<>();
+    for (ClassInfo classInfo : Converter.rootClasses()) {
+      ClassInfo superclass = classInfo.superclass();
+      if (superclass != null) {
+        direct.computeIfAbsent(superclass, k -> new TreeMap<>()).put(classInfo.name(), classInfo);
+      }
+      Set<ClassInfo> ancestors = new HashSet<>();
+      collectAncestors(classInfo, ancestors);
+      for (ClassInfo ancestor : ancestors) {
+        if (superclass == null || !ancestor.equals(superclass)) {
+          indirect.computeIfAbsent(ancestor, k -> new TreeMap<>()).put(classInfo.name(), classInfo);
+        }
+      }
+    }
+    sDirectSubclasses = direct;
+    sIndirectSubclasses = indirect;
+  }
+
+  private static void collectAncestors(ClassInfo current, Set<ClassInfo> ancestors) {
+    ClassInfo superclass = current.superclass();
+    if (superclass != null && ancestors.add(superclass)) {
+      collectAncestors(superclass, ancestors);
+    }
+    for (ClassInfo interfaceInfo : current.interfaces()) {
+      if (ancestors.add(interfaceInfo)) {
+        collectAncestors(interfaceInfo, ancestors);
+      }
+    }
+  }
+
+  /**
+   * Attaches a cached HDF subtree at {@code basePath} by creating a fresh child node at {@code
+   * basePath} and symlinking its immediate children.
+   *
+   * <p>Symlinking {@code basePath} directly would share {@code basePath}'s sibling pointers ({@code
+   * isFirstSibling()} / {@code isLastSibling()}) across pages, which breaks JSilver's {@code
+   * first()} / {@code last()} checks in {@code <?cs each:... ?>} loops.
+   */
+  static void copyNodeViaSymlinks(Data data, String basePath, Data cachedNode) {
+    Data dest = data.createChild(basePath);
+    for (Data child : cachedNode.getChildren()) {
+      dest.setSymlink(child.getName(), child);
+    }
+  }
+
+  /**
+   * Eagerly materializes {@code NestedMapData.getChildren()} lists across the cached subtree before
+   * attaching it via symlinks.
+   */
+  static void prewarmDataSubtree(Data node) {
+    for (Data child : node.getChildren()) {
+      prewarmDataSubtree(child);
     }
   }
 

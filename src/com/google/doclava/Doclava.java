@@ -1591,7 +1591,9 @@ public class Doclava implements Doclet {
 
     // Set up the data structures
     Converter.makeInfo(root);
+    ClassInfo.clearCaches();
     sVisiblePackages = null;
+    clearPackageHdfCache();
 
     if (generateDocs) {
       ClearPage.clearTemplateCache();
@@ -1654,6 +1656,7 @@ public class Doclava implements Doclet {
 
         // Apply details of federated documentation
         federationTagger.tagAll(Converter.rootClasses());
+        clearPackageHdfCache();
 
         // Files for proofreading
         if (proofreadFile != null) {
@@ -1936,27 +1939,47 @@ public class Doclava implements Doclet {
     return data;
   }
 
-  public static Data makePackageHDF() {
+  private static Data sCachedDocsPackagesHdf = null;
+  private static String sCachedReferenceApiLevels = null;
+
+  private static synchronized void clearPackageHdfCache() {
+    sCachedDocsPackagesHdf = null;
+    sCachedReferenceApiLevels = null;
+  }
+
+  public static synchronized Data makePackageHDF() {
     Data data = makeHDF();
     PackageInfo[] packages = choosePackages();
-    for (int i = 0; i < packages.length; i++) {
-      PackageInfo pkg = packages[i];
+    if (packages.length > 0) {
       if (gmsRef) {
         data.setValue("reference.gms", "true");
       } else if (gcmRef) {
         data.setValue("reference.gcm", "true");
       }
       data.setValue("reference", "1");
-      if (METALAVA_API_SINCE) {
-        data.setValue("reference.apilevels", (pkg.getSince() != null) ? "1" : "0");
-      } else {
-        data.setValue("reference.apilevels", sinceTagger.hasVersions() ? "1" : "0");
+      if (sCachedDocsPackagesHdf == null) {
+        Data holder = jSilver.createData();
+        String apiLevels = "0";
+        for (int i = 0; i < packages.length; i++) {
+          PackageInfo pkg = packages[i];
+          if (METALAVA_API_SINCE) {
+            apiLevels = (pkg.getSince() != null) ? "1" : "0";
+          } else {
+            apiLevels = sinceTagger.hasVersions() ? "1" : "0";
+          }
+          holder.setValue("docs.packages." + i + ".name", pkg.name());
+          holder.setValue("docs.packages." + i + ".link", pkg.htmlPage());
+          holder.setValue("docs.packages." + i + ".since", pkg.getSince());
+          TagInfo.makeHDF(holder, "docs.packages." + i + ".shortDescr", pkg.firstSentenceTags());
+        }
+        Data packagesNode = holder.createChild("docs.packages");
+        ClassInfo.prewarmDataSubtree(packagesNode);
+        sCachedReferenceApiLevels = apiLevels;
+        sCachedDocsPackagesHdf = packagesNode;
       }
+      data.setValue("reference.apilevels", sCachedReferenceApiLevels);
       data.setValue("reference.artifacts", artifactTagger.hasArtifacts() ? "1" : "0");
-      data.setValue("docs.packages." + i + ".name", pkg.name());
-      data.setValue("docs.packages." + i + ".link", pkg.htmlPage());
-      data.setValue("docs.packages." + i + ".since", pkg.getSince());
-      TagInfo.makeHDF(data, "docs.packages." + i + ".shortDescr", pkg.firstSentenceTags());
+      ClassInfo.copyNodeViaSymlinks(data, "docs.packages", sCachedDocsPackagesHdf);
     }
 
     sinceTagger.writeVersionNames(data);
