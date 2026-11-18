@@ -16,9 +16,11 @@
 
 package com.google.doclava;
 
+import static com.google.doclava.DoclavaRunner.runNoDocs;
 import static com.google.doclava.DoclavaRunner.runWithDocs;
 import static com.google.doclava.DoclavaRunner.writeFile;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Files;
@@ -34,6 +36,45 @@ import org.junit.runners.JUnit4;
 public final class DocletAdapterFixesTest {
 
   @Rule public final TemporaryFolder tempFolder = new TemporaryFolder();
+
+  @Test
+  public void subpackagesInvocation_includesPublicClassesAndExcludesPackagePrivate()
+      throws Exception {
+    Path srcRoot = tempFolder.newFolder("subpkg_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/pkg/sub/PublicApi.java"),
+        """
+        package test.pkg.sub;
+        public class PublicApi {
+          public PublicApi() {}
+          public void apiMethod() {}
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/pkg/sub/PackagePrivateInternal.java"),
+        """
+        package test.pkg.sub;
+        class PackagePrivateInternal {
+          PackagePrivateInternal() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("subpkg_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.pkg"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PublicApi in api.txt:\n" + api, api.contains("class PublicApi"));
+    assertFalse(
+        "Unexpected PackagePrivateInternal in api.txt:\n" + api,
+        api.contains("PackagePrivateInternal"));
+  }
 
   @Test
   public void nestedEnumsAndAnnotations_areIncludedAndLinkable() throws Exception {
