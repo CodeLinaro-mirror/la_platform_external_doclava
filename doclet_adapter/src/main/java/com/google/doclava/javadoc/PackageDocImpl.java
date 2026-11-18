@@ -30,6 +30,10 @@ import com.sun.javadoc.AnnotationDesc;
 import com.sun.javadoc.AnnotationTypeDoc;
 import com.sun.javadoc.ClassDoc;
 import com.sun.javadoc.PackageDoc;
+import com.sun.source.doctree.DocCommentTree;
+import com.sun.source.util.DocTrees;
+import java.io.File;
+import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
@@ -43,6 +47,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.tools.StandardJavaFileManager;
 
 class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
 
@@ -68,6 +73,47 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     static PackageDocImpl create(PackageElement e, Context context) {
         var ret = context.caches.packages.computeIfAbsent(e, el -> new PackageDocImpl(el, context));
         return ret;
+    }
+
+    private boolean docCommentTreeInitialized;
+    private DocCommentTree docCommentTree;
+
+    @Override
+    protected DocCommentTree getDocCommentTree() {
+        if (!docCommentTreeInitialized) {
+            docCommentTreeInitialized = true;
+            DocTrees docTrees = context.environment.getDocTrees();
+            docCommentTree = docTrees.getDocCommentTree(packageElement);
+            if (docCommentTree == null
+                    && context.environment.getJavaFileManager()
+                            instanceof StandardJavaFileManager sfm) {
+                for (Element enclosed : packageElement.getEnclosedElements()) {
+                    var treePath = docTrees.getPath(enclosed);
+                    if (treePath == null
+                            || treePath.getCompilationUnit() == null
+                            || treePath.getCompilationUnit().getSourceFile() == null) {
+                        continue;
+                    }
+                    URI uri = treePath.getCompilationUnit().getSourceFile().toUri();
+                    if ("file".equals(uri.getScheme())) {
+                        File parent = new File(uri).getParentFile();
+                        if (parent != null) {
+                            File packageHtml = new File(parent, "package.html");
+                            if (packageHtml.isFile()) {
+                                var it = sfm.getJavaFileObjects(packageHtml).iterator();
+                                if (it.hasNext()) {
+                                    docCommentTree = docTrees.getDocCommentTree(it.next());
+                                    if (docCommentTree != null) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return docCommentTree;
     }
 
     @Override
