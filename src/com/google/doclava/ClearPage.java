@@ -17,7 +17,12 @@
 package com.google.doclava;
 
 import com.google.clearsilver.jsilver.JSilver;
+import com.google.clearsilver.jsilver.autoescape.EscapeMode;
 import com.google.clearsilver.jsilver.data.Data;
+import com.google.clearsilver.jsilver.resourceloader.ResourceLoader;
+import com.google.clearsilver.jsilver.template.DelegatingTemplateLoader;
+import com.google.clearsilver.jsilver.template.Template;
+import com.google.clearsilver.jsilver.template.TemplateLoader;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -27,8 +32,9 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ClearPage {
   /*
@@ -45,6 +51,31 @@ public class ClearPage {
   public static String outputDir = "docs";
   public static List<String> htmlDirs = new ArrayList<String>();
   public static String toroot = null;
+
+  // JSilver's constructor ignores JSilverOptions.getCacheTemplates() and uses an uncached
+  // InterpretedTemplateLoader by default, which re-parses and re-optimizes .cs template files on
+  // every page render and every nested <?cs include:... ?> call. Wrapping each JSilver instance's
+  // TemplateLoader with CachingTemplateLoader and registering it as the delegate caches compiled
+  // Template ASTs across both top-level ClearPage.write() calls and nested sub-template includes.
+  private static final ConcurrentHashMap<JSilver, TemplateLoader> sTemplateLoaders =
+      new ConcurrentHashMap<>();
+
+  public static void clearTemplateCache() {
+    sTemplateLoaders.clear();
+  }
+
+  private static TemplateLoader getCachingTemplateLoader(JSilver cs) {
+    return sTemplateLoaders.computeIfAbsent(
+        cs,
+        js -> {
+          TemplateLoader baseLoader = js.getTemplateLoader();
+          CachingTemplateLoader cachingLoader = new CachingTemplateLoader(baseLoader);
+          if (baseLoader instanceof DelegatingTemplateLoader delegatingLoader) {
+            delegatingLoader.setTemplateLoaderDelegate(cachingLoader);
+          }
+          return cachingLoader;
+        });
+  }
 
   public static void addTemplateDir(String dir) {
     mTemplateDirSet = true;
@@ -135,7 +166,10 @@ public class ClearPage {
     Writer stream = null;
     try {
       stream = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
-      String rendered = cs.render(templ, data);
+      EscapeMode escapeMode = cs.getEscapeMode(data);
+      Template template =
+          getCachingTemplateLoader(cs).load(templ, cs.getResourceLoader(), escapeMode);
+      String rendered = cs.render(template, data);
       stream.write(rendered, 0, rendered.length());
     } catch (IOException e) {
       System.out.println("error: " + e.getMessage() + "; when writing file: " + filename);
@@ -238,5 +272,36 @@ public class ClearPage {
       }
     }
     return false;
+  }
+
+  private static final class CachingTemplateLoader implements DelegatingTemplateLoader {
+    private record CacheKey(String templateName, EscapeMode escapeMode) {}
+
+    private final TemplateLoader mDelegate;
+    private final ConcurrentHashMap<CacheKey, Template> mCache = new ConcurrentHashMap<>();
+
+    CachingTemplateLoader(TemplateLoader delegate) {
+      mDelegate = delegate;
+    }
+
+    @Override
+    public void setTemplateLoaderDelegate(TemplateLoader templateLoaderDelegate) {
+      if (mDelegate instanceof DelegatingTemplateLoader delegating) {
+        delegating.setTemplateLoaderDelegate(templateLoaderDelegate);
+      }
+    }
+
+    @Override
+    public Template load(
+        String templateName, ResourceLoader resourceLoader, EscapeMode escapeMode) {
+      return mCache.computeIfAbsent(
+          new CacheKey(templateName, escapeMode),
+          key -> mDelegate.load(key.templateName(), resourceLoader, key.escapeMode()));
+    }
+
+    @Override
+    public Template createTemp(String name, String content, EscapeMode escapeMode) {
+      return mDelegate.createTemp(name, content, escapeMode);
+    }
   }
 }
