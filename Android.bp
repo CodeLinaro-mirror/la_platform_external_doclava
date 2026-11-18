@@ -108,7 +108,16 @@ java_library_host {
     ],
 }
 
-
-// TODO: add a test target.
-// For now, you can run the unit tests thus:
-// vogar --classpath /usr/lib/jvm/java-6-sun/lib/tools.jar --classpath ../../out/host/common/obj/JAVA_LIBRARIES/antlr_intermediates/javalib.jar --sourcepath src/ --sourcepath ../jsilver/src/ --mode jvm test/doclava/ApiCheckTest.java
+java_test_host {
+    name: "doclava-tests",
+    srcs: [
+        "test/com/google/doclava/**/*.java",
+    ],
+    static_libs: [
+        "doclava",
+        "junit",
+    ],
+    test_options: {
+        unit_test: true,
+    },
+}
