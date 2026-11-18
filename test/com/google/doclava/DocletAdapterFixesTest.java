@@ -232,4 +232,61 @@ public final class DocletAdapterFixesTest {
     assertTrue(
         "Expected AnnotatedTarget in api.txt:\n" + api, api.contains("class AnnotatedTarget"));
   }
+
+  @Test
+  public void topLevelAndNestedRecords_areIncludedAndLinkable() throws Exception {
+    Path srcRoot = tempFolder.newFolder("records_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/records/PointRecord.java"),
+        """
+        package test.records;
+        /**
+         * Top-level record.
+         *
+         * @see PointRecord
+         */
+        public record PointRecord(int x, int y) {
+          public static final int ORIGIN = 0;
+
+          public int manhattan() {
+            return Math.abs(x) + Math.abs(y);
+          }
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/records/OuterWithRecord.java"),
+        """
+        package test.records;
+        /**
+         * Links to {@link NestedRecord}.
+         */
+        public class OuterWithRecord {
+          public OuterWithRecord() {}
+
+          public record NestedRecord(String label) {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("records_api.txt");
+    Path docsDir = tempFolder.newFolder("records_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-error",
+            "101",
+            "-subpackages",
+            "test.records"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PointRecord in api.txt:\n" + api, api.contains("class PointRecord"));
+    assertTrue("Expected manhattan() in api.txt:\n" + api, api.contains("manhattan()"));
+    assertTrue("Expected ORIGIN field in api.txt:\n" + api, api.contains("ORIGIN"));
+    assertTrue(
+        "Expected OuterWithRecord.NestedRecord in api.txt:\n" + api,
+        api.contains("class OuterWithRecord.NestedRecord"));
+  }
 }
