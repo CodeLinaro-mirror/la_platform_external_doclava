@@ -25,7 +25,6 @@
 
 package com.google.doclava.javadoc;
 
-import com.google.doclava.annotation.Unused;
 import com.google.doclava.annotation.Used;
 import com.sun.javadoc.AnnotationDesc;
 import com.sun.javadoc.AnnotationTypeDoc;
@@ -59,6 +58,7 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     private ClassDoc[] enums;
     private ClassDoc[] interfaces;
     private AnnotationTypeDoc[] annotationTypes;
+    private AnnotationDesc[] annotations;
 
     protected PackageDocImpl(PackageElement e, Context context) {
         super(e, context);
@@ -186,9 +186,17 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     }
 
     @Override
-    @Unused
+    @Used(implemented = true)
     public AnnotationDesc[] annotations() {
-        throw new UnsupportedOperationException("not yet implemented");
+        if (annotations == null) {
+            annotations = packageElement.getAnnotationMirrors()
+                    .stream()
+                    // b/270334687: Filter out elements that are not ANNOTATION_TYPE
+                    .filter(am -> ((TypeElement) am.getAnnotationType().asElement()).getKind() == ElementKind.ANNOTATION_TYPE)
+                    .map(am -> new AnnotationDescImpl(am, context))
+                    .toArray(AnnotationDesc[]::new);
+        }
+        return annotations;
     }
 
     @Override
