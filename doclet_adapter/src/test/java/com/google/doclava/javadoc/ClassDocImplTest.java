@@ -570,10 +570,16 @@ public class ClassDocImplTest extends BaseTest {
         // x
         // {annotation,class,enum,interface}
 
-        // 3. innerClasses() should return only classes and interfaces (no annotations/enums).
+        // 3. innerClasses(true) returns all selected nested member types
+        // (public/protected/package-private x {annotation,class,enum,interface} = 12).
+        assertEquals(12, innerClasses.innerClasses(true).length);
         assertTrue(Arrays.stream(innerClasses.innerClasses(true))
-                .allMatch(cls -> cls.isClass() || cls.isInterface())
+                .allMatch(cls -> cls.isClass() || cls.isInterface() || cls.isAnnotationType())
         );
+        assertTrue(Arrays.stream(innerClasses.innerClasses(true))
+                .anyMatch(ClassDocImplTest::isAnnotationTypeDoc));
+        assertTrue(Arrays.stream(innerClasses.innerClasses(true))
+                .anyMatch(com.sun.javadoc.ClassDoc::isEnum));
 
         // 4. innerClasses() should return only public/protected/package-private (no private).
         assertTrue(Arrays.stream(innerClasses.innerClasses(true))
@@ -613,16 +619,26 @@ public class ClassDocImplTest extends BaseTest {
         // x
         // {annotation,class,enum,interface}
 
-        // 3. innerClasses() should return only classes and interfaces (no annotations/enums).
+        // 3. innerClasses(false) returns all 16 nested member types
+        // ({public,private,protected,package-private} x {annotation,class,enum,interface}).
+        assertEquals(16, innerClasses.innerClasses(false).length);
         assertTrue(Arrays.stream(innerClasses.innerClasses(false))
-                .allMatch(cls -> cls.isClass() || cls.isInterface())
+                .allMatch(cls -> cls.isClass() || cls.isInterface() || cls.isAnnotationType())
         );
+        assertTrue(Arrays.stream(innerClasses.innerClasses(false))
+                .anyMatch(ClassDocImplTest::isAnnotationTypeDoc));
+        assertTrue(Arrays.stream(innerClasses.innerClasses(false))
+                .anyMatch(com.sun.javadoc.ClassDoc::isEnum));
 
         // 4. innerClasses() should return all (public/protected/package-private/private).
         assertTrue(Arrays.stream(innerClasses.innerClasses(false))
                 .allMatch(cls -> cls.isPublic() || cls.isProtected() || cls.isPackagePrivate()
                         || cls.isPrivate())
         );
+    }
+
+    private static boolean isAnnotationTypeDoc(com.sun.javadoc.ClassDoc cls) {
+        return cls instanceof com.sun.javadoc.AnnotationTypeDoc && cls.isAnnotationType();
     }
 
     private static String[] getInnerClassesNames(ClassDocImpl cls, boolean filter) {

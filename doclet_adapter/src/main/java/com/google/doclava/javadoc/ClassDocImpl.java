@@ -487,7 +487,10 @@ class ClassDocImpl extends ProgramElementDocImpl<TypeElement> implements ClassDo
         return ElementFilter.typesIn(typeElement.getEnclosedElements())
                 .stream()
                 .filter(te -> te.getNestingKind() == NestingKind.MEMBER &&
-                        (te.getKind() == ElementKind.CLASS || te.getKind() == ElementKind.INTERFACE)
+                        (te.getKind() == ElementKind.CLASS ||
+                         te.getKind() == ElementKind.INTERFACE ||
+                         te.getKind() == ElementKind.ENUM ||
+                         te.getKind() == ElementKind.ANNOTATION_TYPE)
                 )
                 .filter(te -> !filter || context.environment.isSelected(te))
                 .map(te -> ClassDocImpl.create(te, context))
