@@ -712,7 +712,10 @@ public class Converter {
     }
   };
 
-  private static AnnotationInstanceInfo[] convertAnnotationInstances(AnnotationDesc[] orig) {
+  static AnnotationInstanceInfo[] convertAnnotationInstances(AnnotationDesc[] orig) {
+    if (orig == null) {
+      return new AnnotationInstanceInfo[0];
+    }
     int len = orig.length;
     AnnotationInstanceInfo[] out = new AnnotationInstanceInfo[len];
     for (int i = 0; i < len; i++) {

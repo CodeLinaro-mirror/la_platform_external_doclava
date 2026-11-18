@@ -1690,7 +1690,7 @@ public class ClassInfo extends DocInfo implements ContainerInfo, Comparable, Sco
         return false;
       }
       PackageInfo pkg = cl.containingPackage();
-      if (pkg != null && pkg.hasHideComment()) {
+      if (pkg != null && (pkg.hasHideComment() || pkg.hasHideAnnotation())) {
         return true;
       }
       if (cl.comment().isHidden() || cl.hasHideAnnotation()) {
