@@ -1591,6 +1591,7 @@ public class Doclava implements Doclet {
 
     // Set up the data structures
     Converter.makeInfo(root);
+    sVisiblePackages = null;
 
     if (generateDocs) {
       ClearPage.clearTemplateCache();
@@ -1937,73 +1938,13 @@ public class Doclava implements Doclet {
 
   public static Data makePackageHDF() {
     Data data = makeHDF();
-    Collection<ClassInfo> classes = Converter.rootClasses();
-
-    SortedMap<String, PackageInfo> sorted = new TreeMap<String, PackageInfo>();
-    for (ClassInfo cl : classes) {
-      PackageInfo pkg = cl.containingPackage();
-      String name;
-      if (pkg == null) {
-        name = "";
-      } else {
-        name = pkg.name();
-      }
-      sorted.put(name, pkg);
-    }
-
-    int i = 0;
-    for (Map.Entry<String, PackageInfo> entry : sorted.entrySet()) {
-      String s = entry.getKey();
-      PackageInfo pkg = entry.getValue();
-
-      if (pkg.isHiddenOrRemoved()) {
-        continue;
-      }
-      boolean allHiddenOrRemoved = true;
-      int pass = 0;
-      ClassInfo[] classesToCheck = null;
-      while (pass < 6) {
-        switch (pass) {
-          case 0:
-            classesToCheck = pkg.ordinaryClasses();
-            break;
-          case 1:
-            classesToCheck = pkg.enums();
-            break;
-          case 2:
-            classesToCheck = pkg.errors();
-            break;
-          case 3:
-            classesToCheck = pkg.exceptions();
-            break;
-          case 4:
-            classesToCheck = pkg.interfaces();
-            break;
-          case 5:
-            classesToCheck = pkg.annotations();
-            break;
-          default:
-            System.err.println("Error reading package: " + pkg.name());
-            break;
-        }
-        for (ClassInfo cl : classesToCheck) {
-          if (!cl.isHiddenOrRemoved()) {
-            allHiddenOrRemoved = false;
-            break;
-          }
-        }
-        if (!allHiddenOrRemoved) {
-          break;
-        }
-        pass++;
-      }
-      if (allHiddenOrRemoved) {
-        continue;
-      }
-      if(gmsRef){
-          data.setValue("reference.gms", "true");
-      } else if(gcmRef){
-          data.setValue("reference.gcm", "true");
+    PackageInfo[] packages = choosePackages();
+    for (int i = 0; i < packages.length; i++) {
+      PackageInfo pkg = packages[i];
+      if (gmsRef) {
+        data.setValue("reference.gms", "true");
+      } else if (gcmRef) {
+        data.setValue("reference.gcm", "true");
       }
       data.setValue("reference", "1");
       if (METALAVA_API_SINCE) {
@@ -2012,11 +1953,10 @@ public class Doclava implements Doclet {
         data.setValue("reference.apilevels", sinceTagger.hasVersions() ? "1" : "0");
       }
       data.setValue("reference.artifacts", artifactTagger.hasArtifacts() ? "1" : "0");
-      data.setValue("docs.packages." + i + ".name", s);
+      data.setValue("docs.packages." + i + ".name", pkg.name());
       data.setValue("docs.packages." + i + ".link", pkg.htmlPage());
       data.setValue("docs.packages." + i + ".since", pkg.getSince());
       TagInfo.makeHDF(data, "docs.packages." + i + ".shortDescr", pkg.firstSentenceTags());
-      i++;
     }
 
     sinceTagger.writeVersionNames(data);
@@ -2417,15 +2357,8 @@ public class Doclava implements Doclet {
   public static void writePackages(String filename) {
     Data data = makePackageHDF();
 
-    int i = 0;
     for (PackageInfo pkg : choosePackages()) {
       writePackage(pkg);
-
-      data.setValue("docs.packages." + i + ".name", pkg.name());
-      data.setValue("docs.packages." + i + ".link", pkg.htmlPage());
-      TagInfo.makeHDF(data, "docs.packages." + i + ".shortDescr", pkg.firstSentenceTags());
-
-      i++;
     }
 
     setPageTitle(data, "Package Index");
