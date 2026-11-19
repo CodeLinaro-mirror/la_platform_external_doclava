@@ -190,6 +190,103 @@ public final class DocletAdapterFixesTest {
   }
 
   @Test
+  public void packageHtmlOnSourcepathForNonIncludedPackage_appliesPackageHide() throws Exception {
+    Path srcRoot = tempFolder.newFolder("sourcepath_pkghtml_src").toPath();
+    writeFile(srcRoot.resolve("test/hiddenbase/package.html"), "<body>{@hide}</body>\n");
+    writeFile(
+        srcRoot.resolve("test/hiddenbase/HiddenBase.java"),
+        """
+        package test.hiddenbase;
+        public class HiddenBase {
+          public HiddenBase() {}
+          public void baseMethod() {}
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/pubpkg/PublicSub.java"),
+        """
+        package test.pubpkg;
+        import test.hiddenbase.HiddenBase;
+        public class PublicSub extends HiddenBase {
+          public PublicSub() {}
+          @Override
+          public void baseMethod() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("sourcepath_pkghtml_api.txt");
+    // Pass only PublicSub.java so test.hiddenbase is loaded from -sourcepath, not included.
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            srcRoot.resolve("test/pubpkg/PublicSub.java").toString()));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PublicSub in api.txt:\n" + api, api.contains("class PublicSub"));
+    assertFalse("Unexpected HiddenBase in api.txt:\n" + api, api.contains("HiddenBase"));
+    assertTrue("Expected baseMethod in api.txt:\n" + api, api.contains("baseMethod"));
+  }
+
+  @Test
+  public void sourcepathPackages_doNotCompleteUnreferencedSiblingClasses() throws Exception {
+    Path srcRoot = tempFolder.newFolder("sourcepath_siblings_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/other/GoodBase.java"),
+        """
+        package test.other;
+        public class GoodBase {
+          public GoodBase() {}
+        }
+        """);
+    // Unreferenced sibling files in both a non-included package (test.other) and an included
+    // package (test.pubpkg) that cannot be compiled. If PackageDocImpl calls
+    // PackageElement.getEnclosedElements(), javac completes them and fails the javadoc run.
+    writeFile(
+        srcRoot.resolve("test/other/BrokenNonIncludedSibling.java"),
+        """
+        package test.other;
+        public class BrokenNonIncludedSibling {
+          this is not valid java syntax
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/pubpkg/BrokenIncludedSibling.java"),
+        """
+        package test.pubpkg;
+        public class BrokenIncludedSibling {
+          this is not valid java syntax
+        }
+        """);
+    Path publicSubSource = srcRoot.resolve("test/pubpkg/PublicSub.java");
+    writeFile(
+        publicSubSource,
+        """
+        package test.pubpkg;
+        import test.other.GoodBase;
+        public class PublicSub extends GoodBase {
+          public PublicSub() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("sourcepath_siblings_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            publicSubSource.toString()));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PublicSub in api.txt:\n" + api, api.contains("class PublicSub"));
+    assertTrue(
+        "Expected GoodBase in api.txt:\n" + api, api.contains("extends test.other.GoodBase"));
+  }
+
+  @Test
   public void primitiveVoidAndArrayClassLiteralsInAnnotations_succeed() throws Exception {
     Path srcRoot = tempFolder.newFolder("class_literals_src").toPath();
     writeFile(
