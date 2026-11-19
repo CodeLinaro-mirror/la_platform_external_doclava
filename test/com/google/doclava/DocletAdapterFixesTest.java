@@ -374,4 +374,42 @@ public final class DocletAdapterFixesTest {
     assertTrue("Expected element label in HTML:\n" + html, html.contains("label"));
     assertTrue("Expected element count in HTML:\n" + html, html.contains("count"));
   }
+
+  @Test
+  public void rawGenericTypes_omitTypeArgumentsInApiAndDocs() throws Exception {
+    Path srcRoot = tempFolder.newFolder("raw_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/raw/Box.java"),
+        """
+        package test.raw;
+        import java.util.List;
+        public class Box<T> {
+          public Box() {}
+          public class Inner {
+            public Inner() {}
+          }
+          @SuppressWarnings("rawtypes")
+          public Box rawMethod(List rawList, Box.Inner rawInner) {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("raw_api.txt");
+    Path docsDir = tempFolder.newFolder("raw_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.raw"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected unparameterized raw types in api.txt:\n" + api,
+        api.contains("method public test.raw.Box rawMethod(java.util.List, test.raw.Box.Inner);"));
+  }
 }

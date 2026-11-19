@@ -34,7 +34,9 @@ import com.sun.javadoc.ParameterizedType;
 import com.sun.javadoc.Type;
 import com.sun.javadoc.TypeVariable;
 import com.sun.javadoc.WildcardType;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
@@ -91,11 +93,10 @@ abstract class TypeImpl implements Type {
                 if (!underlyingType && !dt.getAnnotationMirrors().isEmpty()) {
                     yield AnnotatedTypeImpl.create(dt, context);
                 }
-                if (!dt.getTypeArguments().isEmpty()) {
+                var el = (TypeElement) dt.asElement();
+                if (!dt.getTypeArguments().isEmpty() || isGenericOrWithinGeneric(el)) {
                     yield ParameterizedTypeImpl.create(dt, context);
                 }
-                //TODO: check that it will cast.
-                var el = (TypeElement) dt.asElement();
                 yield ClassDocImpl.create(el, context);
             }
             case NONE -> {
@@ -113,6 +114,18 @@ abstract class TypeImpl implements Type {
             default -> throw new IllegalArgumentException(
                     "Unexpected type of kind: " + m.getKind());
         };
+    }
+
+    private static boolean isGenericOrWithinGeneric(TypeElement el) {
+        for (Element cur = el; cur instanceof TypeElement te; cur = cur.getEnclosingElement()) {
+            if (!te.getTypeParameters().isEmpty()) {
+                return true;
+            }
+            if (te.getModifiers().contains(Modifier.STATIC)) {
+                break;
+            }
+        }
+        return false;
     }
 
     @Override
