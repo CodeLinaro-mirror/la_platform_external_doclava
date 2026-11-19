@@ -333,4 +333,45 @@ public final class DocletAdapterFixesTest {
         "Expected List<java.lang.String> return type in api.txt:\n" + api,
         api.contains("method public java.util.List<java.lang.String> names();"));
   }
+
+  @Test
+  public void annotationTypeElements_areNotEmittedAsClassMethodsInApi() throws Exception {
+    Path srcRoot = tempFolder.newFolder("annot_methods_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/annotmethods/Config.java"),
+        """
+        package test.annotmethods;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        @Retention(RetentionPolicy.RUNTIME)
+        public @interface Config {
+          String label() default "default";
+          int count();
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("annot_methods_api.txt");
+    Path docsDir = tempFolder.newFolder("annot_methods_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.annotmethods"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected Config in api.txt:\n" + api,
+        api.contains("class Config implements java.lang.annotation.Annotation"));
+    assertFalse(
+        "Unexpected regular method entry for annotation element in api.txt:\n" + api,
+        api.contains("method "));
+    String html =
+        Files.readString(docsDir.resolve("reference/test/annotmethods/Config.html"), UTF_8);
+    assertTrue("Expected element label in HTML:\n" + html, html.contains("label"));
+    assertTrue("Expected element count in HTML:\n" + html, html.contains("count"));
+  }
 }

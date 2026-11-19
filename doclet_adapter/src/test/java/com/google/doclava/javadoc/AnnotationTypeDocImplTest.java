@@ -16,7 +16,9 @@
 
 package com.google.doclava.javadoc;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
@@ -36,7 +38,23 @@ public class AnnotationTypeDocImplTest extends BaseTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void create() {
-        AnnotationTypeDocImpl.create(CLASS.publicClass, context);
+        // ElementKind.CLASS is accepted for unresolved annotations (b/313924276), so verify
+        // rejection with ElementKind.INTERFACE.
+        AnnotationTypeDocImpl.create(CLASS.publicInterface, context);
+    }
+
+    @Test
+    public void create_allowsClassKindForUnresolvedAnnotations() {
+        assertNotNull(AnnotationTypeDocImpl.create(CLASS.publicClass, context));
+    }
+
+    @Test
+    public void methods_returnsEmptyArrayEvenWhenElementsExist() {
+        AnnotationTypeDocImpl withElements =
+                AnnotationTypeDocImpl.create(ANNOTATION_METHOD.allDefaultAnnotation, context);
+        assertEquals(13, withElements.elements().length);
+        assertEquals(0, withElements.methods().length);
+        assertEquals(0, withElements.methods(false).length);
     }
 
     @Ignore("Not yet implemented")
