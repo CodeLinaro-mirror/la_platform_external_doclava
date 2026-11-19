@@ -96,9 +96,6 @@ abstract class TypeImpl implements Type {
                 }
                 //TODO: check that it will cast.
                 var el = (TypeElement) dt.asElement();
-                if (el.getKind() == ElementKind.ANNOTATION_TYPE) {
-                    yield AnnotationTypeDocImpl.create(el, context);
-                }
                 yield ClassDocImpl.create(el, context);
             }
             case NONE -> {
