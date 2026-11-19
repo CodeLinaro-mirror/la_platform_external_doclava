@@ -412,4 +412,67 @@ public final class DocletAdapterFixesTest {
         "Expected unparameterized raw types in api.txt:\n" + api,
         api.contains("method public test.raw.Box rawMethod(java.util.List, test.raw.Box.Inner);"));
   }
+
+  @Test
+  public void overrideWithTypeUseAnnotationAndVarargs_elidesMatchingOverride() throws Exception {
+    Path srcRoot = tempFolder.newFolder("sig_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/sig/Nullable.java"),
+        """
+        package test.sig;
+        import java.lang.annotation.ElementType;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        import java.lang.annotation.Target;
+        @Retention(RetentionPolicy.CLASS)
+        @Target(ElementType.TYPE_USE)
+        public @interface Nullable {}
+        """);
+    writeFile(
+        srcRoot.resolve("test/sig/Base.java"),
+        """
+        package test.sig;
+        import java.util.List;
+        public class Base {
+          public Base() {}
+          public void update(@Nullable List<String> items, String... tags) {}
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/sig/Child.java"),
+        """
+        package test.sig;
+        import java.util.List;
+        public class Child extends Base {
+          public Child() {}
+          @Override
+          public void update(List<String> items, String... tags) {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("sig_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.sig"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    int occurrences =
+        api.split(
+                    "method public void update\\(java\\.util\\.List<java\\.lang\\.String>,"
+                        + " java\\.lang\\.String\\.\\.\\.\\);",
+                    -1)
+                .length
+            - 1;
+    assertTrue(
+        "Expected update(...) to appear once on Base and be elided on Child, got "
+            + occurrences
+            + ":\n"
+            + api,
+        occurrences == 1);
+  }
 }

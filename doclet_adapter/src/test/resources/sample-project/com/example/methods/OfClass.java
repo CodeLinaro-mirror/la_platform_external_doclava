@@ -36,6 +36,10 @@ public abstract class OfClass {
         return super.toString();
     }
 
-    Object void_arg1_annotatedObject(@UniversalAnnotation Object obj) {}
+    Object void_arg1_annotatedObject(@UniversalAnnotation Object obj) {
+        return obj;
+    }
+
+    void void_arg1_nestedEntry(java.util.Map.Entry<String, Integer> entry) {}
 }
 

@@ -16,7 +16,11 @@
 
 package com.google.doclava.javadoc;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.util.ElementFilter;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -97,13 +101,44 @@ public class ExecutableMemberDocImplTest extends BaseTest {
     public void typeParameters() {
     }
 
-    @Ignore("Not yet implemented")
-    @Test
-    public void signature() {
+    private static ExecutableElement findOfClassMethod(String simpleName) {
+        return ElementFilter.methodsIn(
+                        initTypeElement("com.example.methods.OfClass").getEnclosedElements())
+                .stream()
+                .filter(e -> simpleName.equals(e.getSimpleName().toString()))
+                .findFirst()
+                .orElseThrow();
     }
 
-    @Ignore("Not yet implemented")
+    @Test
+    public void signature() {
+        assertEquals("()", empty.signature());
+        assertEquals(
+                "(int, java.lang.String)",
+                ConstructorDocImpl.create(CONSTRUCTOR.arg2_int_String, context).signature());
+        assertEquals(
+                "(java.lang.Object)",
+                MethodDocImpl.create(findOfClassMethod("void_arg1_annotatedObject"), context)
+                        .signature());
+        assertEquals(
+                "(java.util.Map.Entry<java.lang.String,java.lang.Integer>)",
+                MethodDocImpl.create(findOfClassMethod("void_arg1_nestedEntry"), context)
+                        .signature());
+    }
+
     @Test
     public void flatSignature() {
+        assertEquals("()", empty.flatSignature());
+        assertEquals(
+                "(int, String)",
+                ConstructorDocImpl.create(CONSTRUCTOR.arg2_int_String, context).flatSignature());
+        assertEquals(
+                "(Object)",
+                MethodDocImpl.create(findOfClassMethod("void_arg1_annotatedObject"), context)
+                        .flatSignature());
+        assertEquals(
+                "(Map.Entry<String,Integer>)",
+                MethodDocImpl.create(findOfClassMethod("void_arg1_nestedEntry"), context)
+                        .flatSignature());
     }
 }
