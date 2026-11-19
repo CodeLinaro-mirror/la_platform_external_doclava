@@ -30,7 +30,11 @@ import com.google.doclava.annotation.Used;
 import com.sun.javadoc.AnnotatedType;
 import com.sun.javadoc.AnnotationDesc;
 import com.sun.javadoc.AnnotationTypeDoc;
+import com.sun.javadoc.ClassDoc;
+import com.sun.javadoc.ParameterizedType;
 import com.sun.javadoc.Type;
+import com.sun.javadoc.TypeVariable;
+import com.sun.javadoc.WildcardType;
 import javax.lang.model.type.DeclaredType;
 
 class AnnotatedTypeImpl extends TypeImpl implements AnnotatedType {
@@ -79,5 +83,60 @@ class AnnotatedTypeImpl extends TypeImpl implements AnnotatedType {
     @Override
     public AnnotatedType asAnnotatedType() {
         return this;
+    }
+
+    @Override
+    public String typeName() {
+        return underlyingType().typeName();
+    }
+
+    @Override
+    public String qualifiedTypeName() {
+        return underlyingType().qualifiedTypeName();
+    }
+
+    @Override
+    public String simpleTypeName() {
+        return underlyingType().simpleTypeName();
+    }
+
+    @Override
+    public String dimension() {
+        return underlyingType().dimension();
+    }
+
+    @Override
+    public boolean isPrimitive() {
+        return underlyingType().isPrimitive();
+    }
+
+    @Override
+    public ClassDoc asClassDoc() {
+        return underlyingType().asClassDoc();
+    }
+
+    @Override
+    public TypeVariable asTypeVariable() {
+        return underlyingType().asTypeVariable();
+    }
+
+    @Override
+    public WildcardType asWildcardType() {
+        return underlyingType().asWildcardType();
+    }
+
+    @Override
+    public ParameterizedType asParameterizedType() {
+        return underlyingType().asParameterizedType();
+    }
+
+    @Override
+    public AnnotationTypeDoc asAnnotationTypeDoc() {
+        return underlyingType().asAnnotationTypeDoc();
+    }
+
+    @Override
+    public Type getElementType() {
+        return underlyingType().getElementType();
     }
 }

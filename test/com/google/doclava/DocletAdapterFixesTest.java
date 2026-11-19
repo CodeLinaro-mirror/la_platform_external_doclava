@@ -289,4 +289,48 @@ public final class DocletAdapterFixesTest {
         "Expected OuterWithRecord.NestedRecord in api.txt:\n" + api,
         api.contains("class OuterWithRecord.NestedRecord"));
   }
+
+  @Test
+  public void typeUseAnnotatedParameterizedType_preservesTypeArguments() throws Exception {
+    Path srcRoot = tempFolder.newFolder("typeuse_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/typeuse/Nullable.java"),
+        """
+        package test.typeuse;
+        import java.lang.annotation.ElementType;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        import java.lang.annotation.Target;
+        @Retention(RetentionPolicy.CLASS)
+        @Target(ElementType.TYPE_USE)
+        public @interface Nullable {}
+        """);
+    writeFile(
+        srcRoot.resolve("test/typeuse/Holder.java"),
+        """
+        package test.typeuse;
+        import java.util.List;
+        public class Holder {
+          public Holder() {}
+          public @Nullable List<String> names() {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("typeuse_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.typeuse"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected List<java.lang.String> return type in api.txt:\n" + api,
+        api.contains("method public java.util.List<java.lang.String> names();"));
+  }
 }
