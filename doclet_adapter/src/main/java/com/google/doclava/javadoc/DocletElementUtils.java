@@ -90,6 +90,10 @@ class DocletElementUtils {
         return e.getKind() == ElementKind.CLASS;
     }
 
+    public boolean isRecord(Element e) {
+        return e.getKind() == ElementKind.RECORD;
+    }
+
     public boolean isPackage(Element e) {
         return e.getKind() == ElementKind.PACKAGE;
     }
@@ -133,7 +137,8 @@ class DocletElementUtils {
         if (isPackage(encl)) {
             return null;
         }
-        while (!(isClass(encl) || isEnum(encl) || isInterface(encl) || isAnnotation(encl))) {
+        while (!(isClass(encl) || isEnum(encl) || isInterface(encl) || isAnnotation(encl)
+                || isRecord(encl))) {
             encl = encl.getEnclosingElement();
             if (encl == null) {
                 return null;

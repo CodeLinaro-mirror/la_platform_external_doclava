@@ -110,7 +110,7 @@ class SeeTagImpl extends TagImpl implements SeeTag {
                 TypeElement te = context.environment.getElementUtils().getTypeElement(signature);
                 if (te != null) {
                     referencedClass = switch (te.getKind()) {
-                        case CLASS, ENUM, INTERFACE -> ClassDocImpl.create(te, context);
+                        case CLASS, ENUM, INTERFACE, RECORD -> ClassDocImpl.create(te, context);
                         case ANNOTATION_TYPE -> AnnotationTypeDocImpl.create(te, context);
                         default -> throw new UnsupportedOperationException(te.getKind() +
                                 " is not yet supported");

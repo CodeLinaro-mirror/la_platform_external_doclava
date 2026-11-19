@@ -64,7 +64,7 @@ class FieldDocImpl extends MemberDocImpl<VariableElement> implements FieldDoc {
     public String qualifiedName() {
         var enclosingClass = variableElement.getEnclosingElement();
         return switch (enclosingClass.getKind()) {
-            case CLASS, INTERFACE, ANNOTATION_TYPE, ENUM ->
+            case CLASS, INTERFACE, ANNOTATION_TYPE, ENUM, RECORD ->
                     ((TypeElement) enclosingClass).getQualifiedName().toString() + "."
                             + variableElement.getSimpleName();
             default -> throw new UnsupportedOperationException("Expected CLASS, INTERFACE, "

@@ -59,7 +59,7 @@ class ConstructorDocImpl extends ExecutableMemberDocImpl implements ConstructorD
     public String qualifiedName() {
         var enclosingClass = executableElement.getEnclosingElement();
         return switch (enclosingClass.getKind()) {
-            case CLASS, INTERFACE, ANNOTATION_TYPE, ENUM ->
+            case CLASS, INTERFACE, ANNOTATION_TYPE, ENUM, RECORD ->
                     ((TypeElement) enclosingClass).getQualifiedName().toString();
             default -> throw new UnsupportedOperationException("Expected CLASS, INTERFACE, "
                     + "ANNOTATION_TYPE or ENUM, but got " + enclosingClass.getKind());
