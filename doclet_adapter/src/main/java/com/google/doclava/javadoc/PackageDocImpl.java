@@ -129,12 +129,7 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         List<ClassDocImpl> classes =
                 filterEnclosedElements(e -> e.getKind().isClass() || e.getKind().isInterface())
                 .filter(e -> !filter || context.environment.isSelected(e))
-                .map(e -> {
-                    if (e.getKind() == ElementKind.ANNOTATION_TYPE) {
-                        return AnnotationTypeDocImpl.create((TypeElement) e, context);
-                    }
-                    return ClassDocImpl.create((TypeElement) e, context);
-                })
+                .map(e -> ClassDocImpl.create((TypeElement) e, context))
                 .toList();
 
         if (filter) {

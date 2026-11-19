@@ -105,8 +105,8 @@ class Context {
                 @Override
                 public Doc visitType(TypeElement e, Context context) {
                     return switch (e.getKind()) {
-                        case CLASS, ENUM, INTERFACE, RECORD -> ClassDocImpl.create(e, context);
-                        case ANNOTATION_TYPE -> AnnotationTypeDocImpl.create(e, context);
+                        case ANNOTATION_TYPE, CLASS, ENUM, INTERFACE, RECORD ->
+                                ClassDocImpl.create(e, context);
                         default -> throw new IllegalArgumentException(
                                 "Expected ANNOTATION_TYPE, CLASS, "
                                         + "ENUM, INTERFACE, or RECORD; but got " + e.getKind());
