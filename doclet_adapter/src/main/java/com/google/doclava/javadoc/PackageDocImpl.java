@@ -127,10 +127,7 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         }
 
         List<ClassDocImpl> classes =
-                filterEnclosedElements(e -> e.getKind() == ElementKind.CLASS ||
-                        e.getKind() == ElementKind.INTERFACE ||
-                        e.getKind() == ElementKind.ENUM ||
-                        e.getKind() == ElementKind.ANNOTATION_TYPE)
+                filterEnclosedElements(e -> e.getKind().isClass() || e.getKind().isInterface())
                 .filter(e -> !filter || context.environment.isSelected(e))
                 .map(e -> {
                     if (e.getKind() == ElementKind.ANNOTATION_TYPE) {
@@ -165,7 +162,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public ClassDoc[] ordinaryClasses() {
         if (ordinaryClasses == null) {
-            ordinaryClasses = filterEnclosedElements(e -> e.getKind() == ElementKind.CLASS)
+            ordinaryClasses = filterEnclosedElements(
+                    e -> e.getKind() == ElementKind.CLASS || e.getKind() == ElementKind.RECORD)
                     .map(e -> ClassDocImpl.create((TypeElement) e, context))
                     .filter(cls -> !cls.isError() && !cls.isException())
                     .toArray(ClassDocImpl[]::new);

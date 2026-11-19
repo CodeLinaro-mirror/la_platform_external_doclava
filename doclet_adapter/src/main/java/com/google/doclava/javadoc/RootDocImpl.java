@@ -53,11 +53,9 @@ public class RootDocImpl extends DocImpl<Element> implements RootDoc {
 
         for (var e : environment.getIncludedElements()) {
             switch (e.getKind()) {
-                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE ->
+                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE, RECORD ->
                         includedClasses.add(ClassDocImpl.create((TypeElement) e, context));
                 case PACKAGE -> PackageDocImpl.create((PackageElement) e, context);
-                case RECORD -> throw new UnsupportedOperationException(
-                        "records are not yet supported.");
                 case MODULE -> {}
                 default -> throw new UnsupportedOperationException(
                         "Not yet supported top-level TypeElement kind:" + e.getKind());
