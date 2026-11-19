@@ -117,7 +117,7 @@ public class Converter {
   }
 
   public static Collection<ClassInfo> allClasses() {
-    return (Collection<ClassInfo>) mClasses.all();
+    return new ArrayList<ClassInfo>((Collection<ClassInfo>) mClasses.all());
   }
 
   private static final MethodDoc[] EMPTY_METHOD_DOC = new MethodDoc[0];
