@@ -128,4 +128,64 @@ public final class DocletAdapterFixesTest {
         "Expected annotation element value() in HTML:\n" + nestedAnnotHtml,
         nestedAnnotHtml.contains("value"));
   }
+
+  @Test
+  public void packageHtmlWithoutSourcepath_appliesPackageHide() throws Exception {
+    Path srcRoot = tempFolder.newFolder("pkghtml_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/annot/Show.java"),
+        """
+        package test.annot;
+        import java.lang.annotation.ElementType;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        import java.lang.annotation.Target;
+        @Retention(RetentionPolicy.CLASS)
+        @Target({ElementType.TYPE, ElementType.CONSTRUCTOR, ElementType.METHOD})
+        public @interface Show {}
+        """);
+    writeFile(srcRoot.resolve("test/hiddenhtml/package.html"), "<body>{@hide}</body>\n");
+    writeFile(
+        srcRoot.resolve("test/hiddenhtml/InternalClass.java"),
+        """
+        package test.hiddenhtml;
+        /** Broken link {@link NonExistentType} should be ignored on hidden class. */
+        public class InternalClass {
+          public InternalClass() {}
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/hiddenhtml/PublishedClass.java"),
+        """
+        package test.hiddenhtml;
+        import test.annot.Show;
+        @Show
+        public class PublishedClass {
+          @Show
+          public PublishedClass() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("pkghtml_api.txt");
+    Path docsDir = tempFolder.newFolder("pkghtml_docs").toPath();
+    // Intentionally omit -sourcepath: pass only .java files directly on the command line.
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-api",
+            apiFile.toString(),
+            "-showAnnotation",
+            "test.annot.Show",
+            "-error",
+            "101",
+            srcRoot.resolve("test/annot/Show.java").toString(),
+            srcRoot.resolve("test/hiddenhtml/InternalClass.java").toString(),
+            srcRoot.resolve("test/hiddenhtml/PublishedClass.java").toString()));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected PublishedClass in api.txt:\n" + api, api.contains("class PublishedClass"));
+    assertFalse(
+        "Unexpected InternalClass in api.txt:\n" + api, api.contains("InternalClass"));
+  }
 }
