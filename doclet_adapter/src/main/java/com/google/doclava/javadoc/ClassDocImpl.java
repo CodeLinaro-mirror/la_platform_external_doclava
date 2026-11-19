@@ -200,10 +200,24 @@ class ClassDocImpl extends ProgramElementDocImpl<TypeElement> implements ClassDo
         return qualifiedName;
     }
 
+    boolean included;
+
     @Override
     @Used(implemented = true)
     public boolean isIncluded() {
-        return context.environment.isIncluded(typeElement);
+        if (included) {
+            return true;
+        }
+        if (context.shouldDocument(typeElement)) {
+            if (containingPackage().isIncluded()) {
+                return included = true;
+            }
+            ClassDoc outer = containingClass();
+            if (outer != null && outer.isIncluded()) {
+                return included = true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -487,7 +501,7 @@ class ClassDocImpl extends ProgramElementDocImpl<TypeElement> implements ClassDo
         return ElementFilter.typesIn(typeElement.getEnclosedElements())
                 .stream()
                 .filter(te -> te.getNestingKind() == NestingKind.MEMBER)
-                .filter(te -> !filter || context.environment.isSelected(te))
+                .filter(te -> !filter || context.isVisible(te))
                 .map(te -> ClassDocImpl.create(te, context))
                 .toArray(ClassDoc[]::new);
     }

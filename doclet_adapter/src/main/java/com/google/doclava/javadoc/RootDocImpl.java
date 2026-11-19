@@ -32,10 +32,14 @@ import com.sun.javadoc.PackageDoc;
 import com.sun.javadoc.RootDoc;
 import com.sun.javadoc.SourcePosition;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.ElementFilter;
 import jdk.javadoc.doclet.DocletEnvironment;
 
 /**
@@ -46,6 +50,7 @@ import jdk.javadoc.doclet.DocletEnvironment;
 public class RootDocImpl extends DocImpl<Element> implements RootDoc {
 
     private final List<ClassDoc> includedClasses = new ArrayList<>();
+    private final Set<ClassDocImpl> includedSet = new LinkedHashSet<>();
     private ClassDoc[] classes;
 
     public RootDocImpl(DocletEnvironment environment) {
@@ -53,12 +58,35 @@ public class RootDocImpl extends DocImpl<Element> implements RootDoc {
 
         for (var e : environment.getIncludedElements()) {
             switch (e.getKind()) {
-                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE, RECORD ->
-                        includedClasses.add(ClassDocImpl.create((TypeElement) e, context));
+                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE, RECORD -> {
+                    TypeElement te = (TypeElement) e;
+                    if (te.getNestingKind() == NestingKind.TOP_LEVEL) {
+                        addIncludedClasses(te);
+                    }
+                }
                 case PACKAGE -> PackageDocImpl.create((PackageElement) e, context);
                 case MODULE -> {}
                 default -> throw new UnsupportedOperationException(
                         "Not yet supported top-level TypeElement kind:" + e.getKind());
+            }
+        }
+    }
+
+    private void addIncludedClasses(TypeElement te) {
+        // Intentionally stop without descending into enclosed types when te is not documented,
+        // matching legacy ClassDocImpl.addAllClasses(list, /* filtered= */ true). Public static
+        // nested types inside package-private classes are still discovered when referenced via
+        // ClassDoc.innerClasses() and marked included by ClassDocImpl.isIncluded() when their
+        // containing package is included.
+        if (!context.shouldDocument(te)) {
+            return;
+        }
+        ClassDocImpl cls = ClassDocImpl.create(te, context);
+        cls.included = true;
+        if (includedSet.add(cls)) {
+            includedClasses.add(cls);
+            for (TypeElement nested : ElementFilter.typesIn(te.getEnclosedElements())) {
+                addIncludedClasses(nested);
             }
         }
     }
