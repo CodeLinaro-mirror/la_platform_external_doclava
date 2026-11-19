@@ -85,7 +85,7 @@ public class PackageInfo extends DocInfo implements ContainerInfo {
   @Override
   public boolean isHidden() {
     if (mHidden == null) {
-      if (hasHideComment()) {
+      if (hasHideComment() || hasHideAnnotation()) {
         // We change the hidden value of the package if a class wants to be not hidden.
         ClassInfo[][] types = new ClassInfo[][] { annotations(), interfaces(), ordinaryClasses(),
             enums(), exceptions() };
@@ -154,6 +154,24 @@ public class PackageInfo extends DocInfo implements ContainerInfo {
       }
     }
     return mHiddenByComment;
+  }
+
+  public boolean hasHideAnnotation() {
+    return !Doclava.checkLevel(Doclava.SHOW_HIDDEN) && !hideAnnotations().isEmpty();
+  }
+
+  public List<AnnotationInstanceInfo> hideAnnotations() {
+    if (mHideAnnotations == null) {
+      mHideAnnotations = Collections.emptyList();
+      if (mPackage != null && !Doclava.hideAnnotations.isEmpty()) {
+        AnnotationDesc[] pkgAnnotations = mPackage.annotations();
+        if (pkgAnnotations != null && pkgAnnotations.length > 0) {
+          mHideAnnotations = AnnotationInstanceInfo.getHideAnnotationsIntersection(
+              Arrays.asList(Converter.convertAnnotationInstances(pkgAnnotations)));
+        }
+      }
+    }
+    return mHideAnnotations;
   }
 
   public boolean hasRemovedComment() {
@@ -307,6 +325,7 @@ public class PackageInfo extends DocInfo implements ContainerInfo {
 
   private Boolean mHidden = null;
   private Boolean mHiddenByComment = null;
+  private List<AnnotationInstanceInfo> mHideAnnotations;
   private Boolean mRemoved = null;
   private Boolean mRemovedByComment = null;
   private String mName;
