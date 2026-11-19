@@ -188,4 +188,48 @@ public final class DocletAdapterFixesTest {
     assertFalse(
         "Unexpected InternalClass in api.txt:\n" + api, api.contains("InternalClass"));
   }
+
+  @Test
+  public void primitiveVoidAndArrayClassLiteralsInAnnotations_succeed() throws Exception {
+    Path srcRoot = tempFolder.newFolder("class_literals_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/literals/TypeRef.java"),
+        """
+        package test.literals;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        @Retention(RetentionPolicy.RUNTIME)
+        public @interface TypeRef {
+          Class<?>[] value() default {int.class, void.class, String[].class};
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/literals/AnnotatedTarget.java"),
+        """
+        package test.literals;
+        @TypeRef({boolean.class, byte[].class, AnnotatedTarget.class})
+        public class AnnotatedTarget {
+          public AnnotatedTarget() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("literals_api.txt");
+    Path docsDir = tempFolder.newFolder("literals_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.literals"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected TypeRef in api.txt:\n" + api,
+        api.contains("class TypeRef implements java.lang.annotation.Annotation"));
+    assertTrue(
+        "Expected AnnotatedTarget in api.txt:\n" + api, api.contains("class AnnotatedTarget"));
+  }
 }
