@@ -34,11 +34,8 @@ import com.sun.javadoc.SourcePosition;
 import java.util.ArrayList;
 import java.util.List;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.ElementFilter;
 import jdk.javadoc.doclet.DocletEnvironment;
 
 /**
@@ -48,44 +45,24 @@ import jdk.javadoc.doclet.DocletEnvironment;
  */
 public class RootDocImpl extends DocImpl<Element> implements RootDoc {
 
+    private final List<ClassDoc> includedClasses = new ArrayList<>();
     private ClassDoc[] classes;
 
     public RootDocImpl(DocletEnvironment environment) {
         super(null, new Context(environment));
 
-        for (var e : environment.getSpecifiedElements()) {
+        for (var e : environment.getIncludedElements()) {
             switch (e.getKind()) {
-                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE -> addClass((TypeElement) e);
+                case CLASS, INTERFACE, ENUM, ANNOTATION_TYPE ->
+                        includedClasses.add(ClassDocImpl.create((TypeElement) e, context));
                 case PACKAGE -> PackageDocImpl.create((PackageElement) e, context);
                 case RECORD -> throw new UnsupportedOperationException(
                         "records are not yet supported.");
-                case MODULE -> throw new UnsupportedOperationException(
-                        "modules are not yet supported.");
+                case MODULE -> {}
                 default -> throw new UnsupportedOperationException(
                         "Not yet supported top-level TypeElement kind:" + e.getKind());
             }
         }
-    }
-
-    private void addClass(TypeElement c) {
-        switch (c.getKind()) {
-            case CLASS, ENUM, INTERFACE -> ClassDocImpl.create(c, context);
-            case ANNOTATION_TYPE -> AnnotationTypeDocImpl.create(c, context);
-            default -> throw new UnsupportedOperationException(
-                    "Unexpected element kind:" + c.getKind());
-        }
-        // Initialize nested
-        // TODO: Need to ensure this is needed!
-        ElementFilter.typesIn(c.getEnclosedElements())
-                .stream()
-                .filter(te -> te.getNestingKind() == NestingKind.MEMBER)
-                .forEach(te -> {
-                    if (te.getKind() == ElementKind.ANNOTATION_TYPE) {
-                        AnnotationTypeDocImpl.create(te, context);
-                    } else {
-                        ClassDocImpl.create(te, context);
-                    }
-                });
     }
 
     @Override
@@ -110,9 +87,7 @@ public class RootDocImpl extends DocImpl<Element> implements RootDoc {
     @Used(implemented = true)
     public ClassDoc[] classes() {
         if (classes == null) {
-            List<ClassDoc> classesAndAnnotations = new ArrayList<>(context.caches.classes.values());
-            classesAndAnnotations.addAll(context.caches.annotations.values());
-            classes = classesAndAnnotations.toArray(ClassDoc[]::new);
+            classes = includedClasses.toArray(ClassDoc[]::new);
         }
         return classes;
     }
