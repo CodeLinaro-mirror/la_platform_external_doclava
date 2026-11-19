@@ -32,8 +32,8 @@ import com.sun.javadoc.ClassDoc;
 import com.sun.javadoc.ProgramElementDoc;
 import com.sun.javadoc.Type;
 import com.sun.javadoc.TypeVariable;
-import java.util.Objects;
 import java.util.stream.Stream;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.IntersectionType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.SimpleTypeVisitor8;
@@ -59,26 +59,37 @@ class TypeVariableImpl extends TypeImpl implements TypeVariable {
     public Type[] bounds() {
         if (bounds == null) {
             TypeMirror bound = typeVariable.getUpperBound();
-            bounds = bound.accept(new SimpleTypeVisitor8<Stream<? extends TypeMirror>, Void>(Stream.of(bound)) {
-                        @Override
-                        public Stream<? extends TypeMirror> visitIntersection(IntersectionType t, Void o) {
-                            return t.getBounds().stream();
-                        }
-                    }, null)
-                    .map(typeMirror -> TypeImpl.create(typeMirror, context))
-                    .filter(type -> !type.qualifiedTypeName().equals("java.lang.Object"))
-                    .toArray(Type[]::new);
+            if (bound == null) {
+                bounds = new Type[0];
+            } else {
+                bounds = bound.accept(new SimpleTypeVisitor8<Stream<? extends TypeMirror>, Void>(Stream.of(bound)) {
+                            @Override
+                            public Stream<? extends TypeMirror> visitIntersection(IntersectionType t, Void o) {
+                                return t.getBounds().stream();
+                            }
+                        }, null)
+                        .map(typeMirror -> TypeImpl.create(typeMirror, context))
+                        .filter(type -> type != null && !type.qualifiedTypeName().equals("java.lang.Object"))
+                        .toArray(Type[]::new);
+            }
         }
         return bounds;
+    }
+
+    private Type erasureType() {
+        if (typeVariable.getUpperBound() == null) {
+            TypeElement objectElement = context.environment.getElementUtils()
+                    .getTypeElement("java.lang.Object");
+            return objectElement != null ? create(objectElement.asType(), context) : null;
+        }
+        return create(context.environment.getTypeUtils().erasure(typeVariable), context);
     }
 
     @Override
     @Used(implemented = true)
     public ClassDoc asClassDoc() {
-        TypeMirror erasure = context.environment.getTypeUtils().erasure(typeVariable);
-        Type type = create(erasure, context);
-        Objects.requireNonNull(type);
-        return type.asClassDoc();
+        Type type = erasureType();
+        return type != null ? type.asClassDoc() : null;
     }
 
     @Override
@@ -102,8 +113,7 @@ class TypeVariableImpl extends TypeImpl implements TypeVariable {
     @Override
     @Used(implemented = true)
     public String typeName() {
-        TypeMirror erasure = context.environment.getTypeUtils().erasure(typeVariable);
-        Type type = create(erasure, context);
-        return type.typeName();
+        Type type = erasureType();
+        return type != null ? type.typeName() : "Object";
     }
 }

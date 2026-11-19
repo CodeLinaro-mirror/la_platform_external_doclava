@@ -475,4 +475,34 @@ public final class DocletAdapterFixesTest {
             + api,
         occurrences == 1);
   }
+
+  @Test
+  public void ignoreSourceErrorsWithUnresolvedBounds_succeedsWithoutNpe() throws Exception {
+    Path srcRoot = tempFolder.newFolder("err_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/err/PartialClass.java"),
+        """
+        package test.err;
+        public class PartialClass<T extends MissingUpperBound> {
+          public PartialClass() {}
+          public T fetch(MissingParam param) {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("err_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "--ignore-source-errors",
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.err"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PartialClass in api.txt:\n" + api, api.contains("class PartialClass"));
+  }
 }
