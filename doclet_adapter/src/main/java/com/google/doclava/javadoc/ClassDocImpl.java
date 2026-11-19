@@ -86,6 +86,9 @@ class ClassDocImpl extends ProgramElementDocImpl<TypeElement> implements ClassDo
     }
 
     static ClassDocImpl create(TypeElement e, Context context) {
+        if (e.getKind() == ElementKind.ANNOTATION_TYPE) {
+            return AnnotationTypeDocImpl.create(e, context);
+        }
         return context.caches.classes.computeIfAbsent(e, el -> new ClassDocImpl(el, context));
     }
 
