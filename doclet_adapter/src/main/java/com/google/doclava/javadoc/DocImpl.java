@@ -49,17 +49,25 @@ abstract class DocImpl<T extends Element> implements Doc, Comparable<Object> {
         this.context = context;
     }
 
+    protected DocCommentTree getDocCommentTree() {
+        return context.environment.getDocTrees().getDocCommentTree(element);
+    }
+
     private String commentText;
 
     @Override
     @Unused(implemented = true)
     public String commentText() {
         if (commentText == null) {
-            var dt = context.environment.getDocTrees().getDocCommentTree(element);
-            commentText = dt.getFullBody().stream()
-                    .map(DocTree::toString)
-                    .collect(Collectors.joining())
-                    .trim();
+            var dt = getDocCommentTree();
+            if (dt == null) {
+                commentText = "";
+            } else {
+                commentText = dt.getFullBody().stream()
+                        .map(DocTree::toString)
+                        .collect(Collectors.joining())
+                        .trim();
+            }
         }
         return commentText;
     }
@@ -70,13 +78,16 @@ abstract class DocImpl<T extends Element> implements Doc, Comparable<Object> {
     @Unused(implemented = true)
     public Tag[] tags() {
         if (tags == null) {
-            DocCommentTree tree = context.environment.getDocTrees().getDocCommentTree(element);
-            List<? extends DocTree> blockTags = tree.getBlockTags();
-
-            tags = blockTags
-                    .stream()
-                    .map(docTree -> TagImpl.create(docTree, element, context))
-                    .toArray(Tag[]::new);
+            DocCommentTree tree = getDocCommentTree();
+            if (tree == null) {
+                tags = new Tag[0];
+            } else {
+                List<? extends DocTree> blockTags = tree.getBlockTags();
+                tags = blockTags
+                        .stream()
+                        .map(docTree -> TagImpl.create(docTree, element, context))
+                        .toArray(Tag[]::new);
+            }
         }
         return tags;
     }
@@ -108,7 +119,7 @@ abstract class DocImpl<T extends Element> implements Doc, Comparable<Object> {
     @Used(implemented = true)
     public Tag[] inlineTags() {
         if (inlineTags == null) {
-            var dt = context.environment.getDocTrees().getDocCommentTree(element);
+            var dt = getDocCommentTree();
             if (dt == null) {
                 inlineTags = new Tag[0];
             } else {
@@ -127,10 +138,14 @@ abstract class DocImpl<T extends Element> implements Doc, Comparable<Object> {
     @Unused(implemented = true)
     public Tag[] firstSentenceTags() {
         if (firstSentenceTags == null) {
-            var dt = context.environment.getDocTrees().getDocCommentTree(element);
-            firstSentenceTags = dt.getFirstSentence().stream()
-                    .map(tag -> TagImpl.create(tag, element, context))
-                    .toArray(Tag[]::new);
+            var dt = getDocCommentTree();
+            if (dt == null) {
+                firstSentenceTags = new Tag[0];
+            } else {
+                firstSentenceTags = dt.getFirstSentence().stream()
+                        .map(tag -> TagImpl.create(tag, element, context))
+                        .toArray(Tag[]::new);
+            }
         }
         return firstSentenceTags;
     }
@@ -148,7 +163,7 @@ abstract class DocImpl<T extends Element> implements Doc, Comparable<Object> {
     @Used(implemented = true)
     public String getRawCommentText() {
         if (getRawCommentText == null) {
-            var dt = context.environment.getDocTrees().getDocCommentTree(element);
+            var dt = getDocCommentTree();
             if (dt == null) {
                 getRawCommentText = "";
             } else {
