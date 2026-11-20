@@ -570,9 +570,9 @@ public class ClassDocImplTest extends BaseTest {
         // x
         // {annotation,class,enum,interface}
 
-        // 3. innerClasses(true) returns all selected nested member types
-        // (public/protected/package-private x {annotation,class,enum,interface} = 12).
-        assertEquals(12, innerClasses.innerClasses(true).length);
+        // 3. innerClasses(true) returns all selected nested member types under
+        // EmptyDoclet's default -protected access (public/protected x 4 kinds = 8).
+        assertEquals(8, innerClasses.innerClasses(true).length);
         assertTrue(Arrays.stream(innerClasses.innerClasses(true))
                 .allMatch(cls -> cls.isClass() || cls.isInterface() || cls.isAnnotationType())
         );
