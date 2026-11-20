@@ -29,11 +29,14 @@ import com.google.doclava.annotation.Unused;
 import com.google.doclava.annotation.Used;
 import com.sun.javadoc.AnnotationTypeDoc;
 import com.sun.javadoc.AnnotationTypeElementDoc;
+import com.sun.javadoc.MethodDoc;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.ElementFilter;
 
 class AnnotationTypeDocImpl extends ClassDocImpl implements AnnotationTypeDoc {
+
+    private static final MethodDoc[] EMPTY_METHODS = new MethodDoc[0];
 
     protected AnnotationTypeDocImpl(TypeElement c, Context context) {
         super(c, context);
@@ -43,6 +46,7 @@ class AnnotationTypeDocImpl extends ClassDocImpl implements AnnotationTypeDoc {
     private AnnotationTypeElementDoc[] elements;
 
     static AnnotationTypeDocImpl create(TypeElement e, Context context) {
+        // ElementKind.CLASS is also accepted for unresolved annotations (b/313924276).
         if (e.getKind() != ElementKind.ANNOTATION_TYPE && e.getKind() != ElementKind.CLASS) {
             throw new IllegalArgumentException("Expected ElementKind.ANNOTATION_TYPE or "
                     + "ElementKind.CLASS as first argument, but got " + e.getKind());
@@ -73,6 +77,18 @@ class AnnotationTypeDocImpl extends ClassDocImpl implements AnnotationTypeDoc {
     @Used(implemented = true)
     public boolean isInterface() {
         return false;
+    }
+
+    @Override
+    @Used(implemented = true)
+    public MethodDoc[] methods() {
+        return EMPTY_METHODS;
+    }
+
+    @Override
+    @Used(implemented = true)
+    public MethodDoc[] methods(boolean filter) {
+        return EMPTY_METHODS;
     }
 
     @Override

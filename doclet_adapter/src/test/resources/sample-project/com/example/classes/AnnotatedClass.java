@@ -16,8 +16,10 @@
 
 package com.example.classes;
 
+import java.util.List;
+
 @UniversalAnnotation
 @AllDefaultAnnotation(str = "abc", integer = 123)
 public class AnnotatedClass {
-
+    public @UniversalAnnotation List<String> annotatedParameterizedField;
 }

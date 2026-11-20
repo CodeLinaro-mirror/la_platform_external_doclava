@@ -30,9 +30,8 @@ import com.google.doclava.annotation.Used;
 import com.sun.javadoc.ClassDoc;
 import com.sun.javadoc.ParameterizedType;
 import com.sun.javadoc.Type;
-import java.util.Objects;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
 
 class ParameterizedTypeImpl extends TypeImpl implements ParameterizedType {
 
@@ -88,10 +87,12 @@ class ParameterizedTypeImpl extends TypeImpl implements ParameterizedType {
     }
 
     @Override
+    public String typeName() {
+        return asClassDoc().typeName();
+    }
+
+    @Override
     public ClassDoc asClassDoc() {
-        TypeMirror erasure = context.environment.getTypeUtils().erasure(declaredType);
-        Type type = create(erasure, context);
-        Objects.requireNonNull(type);
-        return type.asClassDoc();
+        return ClassDocImpl.create((TypeElement) declaredType.asElement(), context);
     }
 }
