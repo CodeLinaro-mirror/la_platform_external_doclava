@@ -177,8 +177,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         }
 
         List<ClassDocImpl> classes =
-                filterEnclosedElements(e -> e.getKind().isClass() || e.getKind().isInterface())
-                .filter(e -> !filter || context.environment.isSelected(e))
+                filterEnclosedElements(
+                        e -> e.getKind().isClass() || e.getKind().isInterface(), filter)
                 .map(e -> ClassDocImpl.create((TypeElement) e, context))
                 .toList();
 
@@ -196,10 +196,16 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     }
 
     private Stream<Element> filterEnclosedElements(Predicate<Element> predicate) {
-        EnclosedElementsIterator it = new EnclosedElementsIterator(packageElement);
+        return filterEnclosedElements(predicate, true);
+    }
+
+    private Stream<Element> filterEnclosedElements(Predicate<Element> predicate, boolean filter) {
+        EnclosedElementsIterator it = new EnclosedElementsIterator(packageElement, filter);
         return StreamSupport
                 .stream(Spliterators.spliteratorUnknownSize(it, Spliterator.ORDERED), false)
-                .filter(context.environment::isIncluded)
+                .filter(e -> e instanceof TypeElement te
+                        && !context.isSynthetic(te)
+                        && (!filter || context.shouldDocument(te)))
                 .filter(predicate);
     }
 
@@ -319,12 +325,14 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         return qualifiedName;
     }
 
-    private static final class EnclosedElementsIterator implements Iterator<Element> {
+    private final class EnclosedElementsIterator implements Iterator<Element> {
 
         private final Deque<Element> queue;
+        private final boolean filter;
 
-        public EnclosedElementsIterator(Element element) {
+        public EnclosedElementsIterator(Element element, boolean filter) {
             this.queue = new ArrayDeque<>(element.getEnclosedElements());
+            this.filter = filter;
         }
 
         @Override
@@ -335,7 +343,12 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         @Override
         public Element next() {
             Element current = queue.pop();
-            if (!current.getEnclosedElements().isEmpty()) {
+            // Match legacy PackageDocImpl.getClasses(true) -> ClassDocImpl.addAllClasses(list, true)
+            // by not descending into non-documented types when filtering; allClasses(false) passes
+            // filter = false and still traverses all enclosed types.
+            if (current instanceof TypeElement te
+                    && (!filter || context.shouldDocument(te))
+                    && !current.getEnclosedElements().isEmpty()) {
                 queue.addAll(current.getEnclosedElements());
             }
             return current;

@@ -509,4 +509,182 @@ public final class DocletAdapterFixesTest {
         "Expected unparameterized raw types in api.txt:\n" + api,
         api.contains("method public test.raw.Box rawMethod(java.util.List, test.raw.Box.Inner);"));
   }
+
+  @Test
+  public void overrideWithTypeUseAnnotationAndVarargs_elidesMatchingOverride() throws Exception {
+    Path srcRoot = tempFolder.newFolder("sig_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/sig/Nullable.java"),
+        """
+        package test.sig;
+        import java.lang.annotation.ElementType;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        import java.lang.annotation.Target;
+        @Retention(RetentionPolicy.CLASS)
+        @Target(ElementType.TYPE_USE)
+        public @interface Nullable {}
+        """);
+    writeFile(
+        srcRoot.resolve("test/sig/Base.java"),
+        """
+        package test.sig;
+        import java.util.List;
+        public class Base {
+          public Base() {}
+          public void update(@Nullable List<String> items, String... tags) {}
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/sig/Child.java"),
+        """
+        package test.sig;
+        import java.util.List;
+        public class Child extends Base {
+          public Child() {}
+          @Override
+          public void update(List<String> items, String... tags) {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("sig_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.sig"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    int occurrences =
+        api.split(
+                    "method public void update\\(java\\.util\\.List<java\\.lang\\.String>,"
+                        + " java\\.lang\\.String\\.\\.\\.\\);",
+                    -1)
+                .length
+            - 1;
+    assertTrue(
+        "Expected update(...) to appear once on Base and be elided on Child, got "
+            + occurrences
+            + ":\n"
+            + api,
+        occurrences == 1);
+  }
+
+  @Test
+  public void ignoreSourceErrorsWithUnresolvedBounds_succeedsWithoutNpe() throws Exception {
+    Path srcRoot = tempFolder.newFolder("err_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/err/PartialClass.java"),
+        """
+        package test.err;
+        public class PartialClass<T extends MissingUpperBound> {
+          public PartialClass() {}
+          public T fetch(MissingParam param) {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("err_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "--ignore-source-errors",
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.err"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PartialClass in api.txt:\n" + api, api.contains("class PartialClass"));
+  }
+
+  @Test
+  public void nestedTypesInPackagePrivateEnclosingTypes_matchLegacyInclusion() throws Exception {
+    Path srcRoot = tempFolder.newFolder("nested_vis_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/vis/PackagePrivateTop.java"),
+        """
+        package test.vis;
+        class PackagePrivateTop {
+          public static class PublicNested {
+            public PublicNested() {}
+          }
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/vis/PublicEntry.java"),
+        """
+        package test.vis;
+        public class PublicEntry {
+          PackagePrivateTop ref;
+          public PublicEntry() {}
+
+          static class PackagePrivateHolder {
+            /** Links to non-documented {@link PackagePrivateHolder}. */
+            public interface Callback {
+              void onEvent();
+            }
+          }
+
+          private static class PrivateHolder {
+            public static class InsidePrivate {
+              public InsidePrivate() {}
+            }
+          }
+        }
+        """);
+
+    // 1. Package invocation (-subpackages): PublicNested inside referenced package-private
+    // PackagePrivateTop is included because Context.isVisible() is true and its containing
+    // package is included.
+    Path keepFile = tempFolder.getRoot().toPath().resolve("vis_proguard.cfg");
+    Path pkgApiFile = tempFolder.getRoot().toPath().resolve("vis_pkg_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            pkgApiFile.toString(),
+            "-proguard",
+            keepFile.toString(),
+            "-subpackages",
+            "test.vis"));
+
+    String keep = Files.readString(keepFile, UTF_8);
+    assertTrue(
+        "Expected PublicNested inside package-private top-level class in proguard keep list:\n"
+            + keep,
+        keep.contains("PublicNested"));
+
+    // 2. Explicit source-file invocation with HTML docs (-error 101): RootDocImpl stops at
+    // non-documented enclosing classes, so Callback inside PackagePrivateHolder and InsidePrivate
+    // inside PrivateHolder are skipped without unresolved-link errors.
+    Path explicitApiFile = tempFolder.getRoot().toPath().resolve("vis_explicit_api.txt");
+    Path docsDir = tempFolder.newFolder("vis_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            explicitApiFile.toString(),
+            "-error",
+            "101",
+            srcRoot.resolve("test/vis/PackagePrivateTop.java").toString(),
+            srcRoot.resolve("test/vis/PublicEntry.java").toString()));
+
+    String explicitApi = Files.readString(explicitApiFile, UTF_8);
+    assertFalse(
+        "Unexpected Callback inside non-documented PackagePrivateHolder in api.txt:\n"
+            + explicitApi,
+        explicitApi.contains("Callback"));
+    assertFalse(
+        "Unexpected InsidePrivate inside private nested class in api.txt:\n" + explicitApi,
+        explicitApi.contains("InsidePrivate"));
+  }
 }
