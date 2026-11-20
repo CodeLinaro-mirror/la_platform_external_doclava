@@ -157,21 +157,26 @@ public class PackageInfo extends DocInfo implements ContainerInfo {
   }
 
   public boolean hasHideAnnotation() {
-    return !Doclava.checkLevel(Doclava.SHOW_HIDDEN) && !hideAnnotations().isEmpty();
-  }
-
-  public List<AnnotationInstanceInfo> hideAnnotations() {
-    if (mHideAnnotations == null) {
-      mHideAnnotations = Collections.emptyList();
+    if (Doclava.checkLevel(Doclava.SHOW_HIDDEN)) {
+      return false;
+    }
+    if (mHasHideAnnotation == null) {
+      boolean hasHide = false;
       if (mPackage != null && !Doclava.hideAnnotations.isEmpty()) {
-        AnnotationDesc[] pkgAnnotations = mPackage.annotations();
-        if (pkgAnnotations != null && pkgAnnotations.length > 0) {
-          mHideAnnotations = AnnotationInstanceInfo.getHideAnnotationsIntersection(
-              Arrays.asList(Converter.convertAnnotationInstances(pkgAnnotations)));
+        AnnotationDesc[] packageAnnotations = mPackage.annotations();
+        if (packageAnnotations != null) {
+          for (AnnotationDesc annotation : packageAnnotations) {
+            AnnotationTypeDoc type = annotation.annotationType();
+            if (type != null && Doclava.hideAnnotations.contains(type.qualifiedName())) {
+              hasHide = true;
+              break;
+            }
+          }
         }
       }
+      mHasHideAnnotation = hasHide;
     }
-    return mHideAnnotations;
+    return mHasHideAnnotation;
   }
 
   public boolean hasRemovedComment() {
@@ -325,7 +330,7 @@ public class PackageInfo extends DocInfo implements ContainerInfo {
 
   private Boolean mHidden = null;
   private Boolean mHiddenByComment = null;
-  private List<AnnotationInstanceInfo> mHideAnnotations;
+  private Boolean mHasHideAnnotation = null;
   private Boolean mRemoved = null;
   private Boolean mRemovedByComment = null;
   private String mName;
