@@ -22,7 +22,9 @@ import com.sun.source.doctree.ParamTree;
 import com.sun.source.doctree.SeeTree;
 import com.sun.source.doctree.SerialFieldTree;
 import com.sun.source.doctree.ThrowsTree;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
@@ -47,9 +49,27 @@ class Context {
     public final DocletEnvironment environment;
     public final Caches caches = new Caches();
     public final DocletElementUtils docletElementUtils;
+    private Map<PackageElement, List<TypeElement>> includedTopLevelTypesByPackage;
 
     public Doc obtain(Element element) {
         return OBTAIN_VISITOR.visit(element, this);
+    }
+
+    List<TypeElement> getIncludedTopLevelTypes(PackageElement packageElement) {
+        if (includedTopLevelTypesByPackage == null) {
+            Map<PackageElement, List<TypeElement>> typesByPackage = new HashMap<>();
+            for (Element element : environment.getIncludedElements()) {
+                if (element instanceof TypeElement typeElement
+                        && typeElement.getEnclosingElement()
+                                instanceof PackageElement enclosingPackage) {
+                    typesByPackage
+                            .computeIfAbsent(enclosingPackage, ignored -> new ArrayList<>())
+                            .add(typeElement);
+                }
+            }
+            includedTopLevelTypesByPackage = typesByPackage;
+        }
+        return includedTopLevelTypesByPackage.getOrDefault(packageElement, List.of());
     }
 
     public static class Caches {
