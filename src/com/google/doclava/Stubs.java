@@ -952,7 +952,7 @@ public class Stubs {
       stream.print("volatile ");
     }
 
-    stream.print(field.type().fullName());
+    stream.print(field.type().fullName(field.typeVariables()));
     stream.print(" ");
     stream.print(field.name());
 
@@ -1302,7 +1302,7 @@ public class Stubs {
     // need to make sure value is valid XML
     String value = makeXMLcompliant(fi.constantLiteralValue());
 
-    String fullTypeName = makeXMLcompliant(fi.type().fullName());
+    String fullTypeName = makeXMLcompliant(fi.type().fullName(fi.typeVariables()));
 
     xmlWriter.println("<field name=\"" + fi.name() + "\"\n" + " type=\"" + fullTypeName + "\"\n"
         + " transient=\"" + fi.isTransient() + "\"\n" + " volatile=\"" + fi.isVolatile() + "\"\n"
