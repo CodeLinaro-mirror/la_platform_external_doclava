@@ -386,4 +386,127 @@ public final class DocletAdapterFixesTest {
         "Expected OuterWithRecord.NestedRecord in api.txt:\n" + api,
         api.contains("class OuterWithRecord.NestedRecord"));
   }
+
+  @Test
+  public void typeUseAnnotatedParameterizedType_preservesTypeArguments() throws Exception {
+    Path srcRoot = tempFolder.newFolder("typeuse_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/typeuse/Nullable.java"),
+        """
+        package test.typeuse;
+        import java.lang.annotation.ElementType;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        import java.lang.annotation.Target;
+        @Retention(RetentionPolicy.CLASS)
+        @Target(ElementType.TYPE_USE)
+        public @interface Nullable {}
+        """);
+    writeFile(
+        srcRoot.resolve("test/typeuse/Holder.java"),
+        """
+        package test.typeuse;
+        import java.util.List;
+        public class Holder {
+          public Holder() {}
+          public @Nullable List<String> names() {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("typeuse_api.txt");
+    runNoDocs(
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.typeuse"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected List<java.lang.String> return type in api.txt:\n" + api,
+        api.contains("method public java.util.List<java.lang.String> names();"));
+  }
+
+  @Test
+  public void annotationTypeElements_areNotEmittedAsClassMethodsInApi() throws Exception {
+    Path srcRoot = tempFolder.newFolder("annot_methods_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/annotmethods/Config.java"),
+        """
+        package test.annotmethods;
+        import java.lang.annotation.Retention;
+        import java.lang.annotation.RetentionPolicy;
+        @Retention(RetentionPolicy.RUNTIME)
+        public @interface Config {
+          String label() default "default";
+          int count();
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("annot_methods_api.txt");
+    Path docsDir = tempFolder.newFolder("annot_methods_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.annotmethods"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected Config in api.txt:\n" + api,
+        api.contains("class Config implements java.lang.annotation.Annotation"));
+    assertFalse(
+        "Unexpected regular method entry for annotation element in api.txt:\n" + api,
+        api.contains("method "));
+    String html =
+        Files.readString(docsDir.resolve("reference/test/annotmethods/Config.html"), UTF_8);
+    assertTrue("Expected element label in HTML:\n" + html, html.contains("label"));
+    assertTrue("Expected element count in HTML:\n" + html, html.contains("count"));
+  }
+
+  @Test
+  public void rawGenericTypes_omitTypeArgumentsInApiAndDocs() throws Exception {
+    Path srcRoot = tempFolder.newFolder("raw_src").toPath();
+    writeFile(
+        srcRoot.resolve("test/raw/Box.java"),
+        """
+        package test.raw;
+        import java.util.List;
+        public class Box<T> {
+          public Box() {}
+          public class Inner {
+            public Inner() {}
+          }
+          @SuppressWarnings("rawtypes")
+          public Box rawMethod(List rawList, Box.Inner rawInner) {
+            return null;
+          }
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("raw_api.txt");
+    Path docsDir = tempFolder.newFolder("raw_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-subpackages",
+            "test.raw"));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue(
+        "Expected unparameterized raw types in api.txt:\n" + api,
+        api.contains("method public test.raw.Box rawMethod(java.util.List, test.raw.Box.Inner);"));
+  }
 }
