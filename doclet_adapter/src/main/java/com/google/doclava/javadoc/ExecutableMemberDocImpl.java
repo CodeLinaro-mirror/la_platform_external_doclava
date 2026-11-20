@@ -41,7 +41,11 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements.Origin;
 
 abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> implements
@@ -162,11 +166,7 @@ abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> 
     @Used(implemented = true)
     public String signature() {
         if (signature == null) {
-             String params = executableElement.getParameters()
-                     .stream()
-                     .map(param -> param.asType().toString())
-                     .collect(Collectors.joining(", "));
-            signature = "(" + params + ")";
+            signature = makeSignature(true);
         }
         return signature;
     }
@@ -175,17 +175,71 @@ abstract class ExecutableMemberDocImpl extends MemberDocImpl<ExecutableElement> 
     @Used(implemented = true)
     public String flatSignature() {
         if (flatSignature == null) {
-            String params = executableElement.getParameters()
-                    .stream()
-                    .map(param -> {
-                        TypeMirror mirror = param.asType();
-                        Type t = TypeImpl.create(mirror, context);
-                        return t.simpleTypeName();
-                    })
-                    .collect(Collectors.joining(", "));
-            flatSignature = "(" + params + ")";
+            flatSignature = makeSignature(false);
         }
         return flatSignature;
+    }
+
+    private String makeSignature(boolean full) {
+        var params = executableElement.getParameters();
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < params.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(formatSignatureType(params.get(i).asType(), full));
+        }
+        if (isVarArgs() && sb.length() >= 2 && sb.substring(sb.length() - 2).equals("[]")) {
+            sb.replace(sb.length() - 2, sb.length(), "...");
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    private String formatSignatureType(TypeMirror m, boolean full) {
+        return switch (m.getKind()) {
+            case ARRAY -> formatSignatureType(((ArrayType) m).getComponentType(), full) + "[]";
+            case DECLARED -> {
+                DeclaredType dt = (DeclaredType) m;
+                TypeElement te = (TypeElement) dt.asElement();
+                // Match legacy ParameterizedTypeImpl.parameterizedTypeToString and
+                // ClassDocImpl.getClassName: flatSignature() strips the package prefix but retains
+                // enclosing class names (e.g. "Map.Entry") and any enclosing type arguments.
+                String base;
+                if (dt.getEnclosingType().getKind() == TypeKind.DECLARED) {
+                    base = formatSignatureType(dt.getEnclosingType(), full)
+                            + "." + te.getSimpleName();
+                } else {
+                    base = full
+                            ? te.getQualifiedName().toString()
+                            : ClassDocImpl.create(te, context).name();
+                }
+                if (dt.getTypeArguments().isEmpty()) {
+                    yield base;
+                }
+                String args = dt.getTypeArguments().stream()
+                        .map(arg -> formatSignatureType(arg, full))
+                        .collect(Collectors.joining(","));
+                yield base + "<" + args + ">";
+            }
+            case WILDCARD -> {
+                WildcardType wt = (WildcardType) m;
+                if (wt.getExtendsBound() != null) {
+                    yield "? extends " + formatSignatureType(wt.getExtendsBound(), full);
+                }
+                if (wt.getSuperBound() != null) {
+                    yield "? super " + formatSignatureType(wt.getSuperBound(), full);
+                }
+                yield "?";
+            }
+            // Qualified to avoid colliding with imported com.sun.javadoc.TypeVariable above.
+            case TYPEVAR -> ((javax.lang.model.type.TypeVariable) m)
+                    .asElement().getSimpleName().toString();
+            default -> {
+                Type t = TypeImpl.create(m, context);
+                yield full ? t.qualifiedTypeName() : t.simpleTypeName();
+            }
+        };
     }
 
     @Override
