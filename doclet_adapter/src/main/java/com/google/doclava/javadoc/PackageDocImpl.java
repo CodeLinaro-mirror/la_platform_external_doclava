@@ -33,11 +33,14 @@ import com.sun.javadoc.PackageDoc;
 import com.sun.source.doctree.DocCommentTree;
 import com.sun.source.util.DocTrees;
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Predicate;
@@ -47,7 +50,11 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.tools.FileObject;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileManager.Location;
 import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
 
 class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
 
@@ -84,36 +91,79 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
             docCommentTreeInitialized = true;
             DocTrees docTrees = context.environment.getDocTrees();
             docCommentTree = docTrees.getDocCommentTree(packageElement);
-            if (docCommentTree == null
-                    && context.environment.getJavaFileManager()
-                            instanceof StandardJavaFileManager sfm) {
-                for (Element enclosed : packageElement.getEnclosedElements()) {
-                    var treePath = docTrees.getPath(enclosed);
-                    if (treePath == null
-                            || treePath.getCompilationUnit() == null
-                            || treePath.getCompilationUnit().getSourceFile() == null) {
-                        continue;
-                    }
-                    URI uri = treePath.getCompilationUnit().getSourceFile().toUri();
-                    if ("file".equals(uri.getScheme())) {
-                        File parent = new File(uri).getParentFile();
-                        if (parent != null) {
-                            File packageHtml = new File(parent, "package.html");
-                            if (packageHtml.isFile()) {
-                                var it = sfm.getJavaFileObjects(packageHtml).iterator();
-                                if (it.hasNext()) {
-                                    docCommentTree = docTrees.getDocCommentTree(it.next());
-                                    if (docCommentTree != null) {
-                                        break;
-                                    }
-                                }
+            if (docCommentTree == null) {
+                docCommentTree = findPackageHtmlCommentTree(docTrees);
+            }
+        }
+        return docCommentTree;
+    }
+
+    private DocCommentTree findPackageHtmlCommentTree(DocTrees docTrees) {
+        JavaFileManager fileManager = context.environment.getJavaFileManager();
+        if (fileManager == null) {
+            return null;
+        }
+        DocCommentTree tree =
+                findPackageHtmlInLocation(docTrees, fileManager, StandardLocation.SOURCE_PATH);
+        if (tree != null) {
+            return tree;
+        }
+        tree = findSiblingPackageHtml(docTrees, fileManager);
+        if (tree != null) {
+            return tree;
+        }
+        return findPackageHtmlInLocation(docTrees, fileManager, StandardLocation.CLASS_PATH);
+    }
+
+    private DocCommentTree findPackageHtmlInLocation(
+            DocTrees docTrees, JavaFileManager fileManager, Location location) {
+        if (!fileManager.hasLocation(location)) {
+            return null;
+        }
+        try {
+            FileObject packageHtml =
+                    fileManager.getFileForInput(location, qualifiedName(), "package.html");
+            return packageHtml == null ? null : docTrees.getDocCommentTree(packageHtml);
+        } catch (IOException | IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private DocCommentTree findSiblingPackageHtml(DocTrees docTrees, JavaFileManager fileManager) {
+        if (!(fileManager instanceof StandardJavaFileManager standardFileManager)) {
+            return null;
+        }
+        List<TypeElement> includedTypes = context.getIncludedTopLevelTypes(packageElement);
+        if (includedTypes.isEmpty()) {
+            return null;
+        }
+        Set<File> visitedDirectories = new HashSet<>();
+        for (TypeElement typeElement : includedTypes) {
+            var treePath = docTrees.getPath(typeElement);
+            if (treePath == null
+                    || treePath.getCompilationUnit() == null
+                    || treePath.getCompilationUnit().getSourceFile() == null) {
+                continue;
+            }
+            URI uri = treePath.getCompilationUnit().getSourceFile().toUri();
+            if ("file".equals(uri.getScheme())) {
+                File parentDirectory = new File(uri).getParentFile();
+                if (parentDirectory != null && visitedDirectories.add(parentDirectory)) {
+                    File packageHtml = new File(parentDirectory, "package.html");
+                    if (packageHtml.isFile()) {
+                        var fileObjects =
+                                standardFileManager.getJavaFileObjects(packageHtml).iterator();
+                        if (fileObjects.hasNext()) {
+                            DocCommentTree tree = docTrees.getDocCommentTree(fileObjects.next());
+                            if (tree != null) {
+                                return tree;
                             }
                         }
                     }
                 }
             }
         }
-        return docCommentTree;
+        return null;
     }
 
     @Override
