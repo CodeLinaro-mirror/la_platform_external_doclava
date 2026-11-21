@@ -195,6 +195,7 @@ public class TypeInfo implements Resolvable {
 
   public void setDimension(String dimension) {
       mDimension = dimension;
+      mFullName = null;
   }
 
   public String simpleTypeName() {
@@ -209,7 +210,8 @@ public class TypeInfo implements Resolvable {
     if (mFullName != null) {
       return mFullName;
     } else {
-      return fullName(new HashSet<String>());
+      mFullName = fullName(new HashSet<String>());
+      return mFullName;
     }
   }
 
@@ -229,8 +231,7 @@ public class TypeInfo implements Resolvable {
   }
 
   public String fullName(HashSet<String> typeVars) {
-    mFullName = fullNameNoDimension(typeVars) + mDimension;
-    return mFullName;
+    return fullNameNoDimension(typeVars) + mDimension;
   }
 
   public String fullNameNoBounds(HashSet<String> typeVars) {
@@ -379,6 +380,7 @@ public class TypeInfo implements Resolvable {
 
   void setTypeArguments(ArrayList<TypeInfo> args) {
     mTypeArguments = args;
+    mFullName = null;
   }
 
   public void addTypeArgument(TypeInfo arg) {
@@ -387,11 +389,13 @@ public class TypeInfo implements Resolvable {
       }
 
       mTypeArguments.add(arg);
+      mFullName = null;
   }
 
   public void setBounds(ArrayList<TypeInfo> superBounds, ArrayList<TypeInfo> extendsBounds) {
     mSuperBounds = superBounds;
     mExtendsBounds = extendsBounds;
+    mFullName = null;
   }
 
   public ArrayList<TypeInfo> superBounds() {
@@ -548,6 +552,12 @@ public class TypeInfo implements Resolvable {
   public TypeInfo getTypeWithArguments(Map<String, TypeInfo> typeArguments) {
     if (typeArguments.containsKey(fullName())) {
       return typeArguments.get(fullName());
+    } else if (mIsTypeVariable && (mDimension == null || mDimension.isEmpty())
+        && typeArguments.containsKey(simpleTypeName())) {
+      // Only substitute bare type variables (matching the fullName() lookup above, where
+      // array types such as T[] never match keys like "T"). Looking up simpleTypeName() for
+      // array types would drop mDimension (for example, turning T[] into Integer).
+      return typeArguments.get(simpleTypeName());
     }
 
     TypeInfo ti = new TypeInfo(this);

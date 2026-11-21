@@ -17,6 +17,7 @@
 package com.google.doclava;
 
 import com.google.doclava.apicheck.ApiInfo;
+import com.sun.javadoc.AnnotatedType;
 import com.sun.javadoc.AnnotationDesc;
 import com.sun.javadoc.AnnotationTypeDoc;
 import com.sun.javadoc.AnnotationTypeElementDoc;
@@ -587,6 +588,13 @@ public class Converter {
   };
 
   private static TypeInfo obtainType(Type o) {
+    while (o != null) {
+      AnnotatedType annotated = o.asAnnotatedType();
+      if (annotated == null) {
+        break;
+      }
+      o = annotated.underlyingType();
+    }
     return (TypeInfo) mTypes.obtain(o);
   }
 
