@@ -36,20 +36,18 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.ElementFilter;
 import javax.tools.FileObject;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileManager.Location;
@@ -133,12 +131,15 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         if (!(fileManager instanceof StandardJavaFileManager standardFileManager)) {
             return null;
         }
-        List<TypeElement> includedTypes = context.getIncludedTopLevelTypes(packageElement);
+        List<TypeElement> includedTypes = context.getIncludedTypes(packageElement);
         if (includedTypes.isEmpty()) {
             return null;
         }
         Set<File> visitedDirectories = new HashSet<>();
         for (TypeElement typeElement : includedTypes) {
+            if (typeElement.getNestingKind() != NestingKind.TOP_LEVEL) {
+                continue;
+            }
             var treePath = docTrees.getPath(typeElement);
             if (treePath == null
                     || treePath.getCompilationUnit() == null
@@ -176,11 +177,12 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
             return allClassesFiltered;
         }
 
+        Stream<TypeElement> types =
+                filter ? context.getIncludedTypes(packageElement).stream() : allEnclosedTypes();
         List<ClassDocImpl> classes =
-                filterEnclosedElements(
-                        e -> e.getKind().isClass() || e.getKind().isInterface(), filter)
-                .map(e -> ClassDocImpl.create((TypeElement) e, context))
-                .toList();
+                types.filter(e -> e.getKind().isClass() || e.getKind().isInterface())
+                        .map(e -> ClassDocImpl.create(e, context))
+                        .toList();
 
         if (filter) {
             return allClassesFiltered = classes.toArray(ClassDoc[]::new);
@@ -195,27 +197,31 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
         return allClasses(true);
     }
 
-    private Stream<Element> filterEnclosedElements(Predicate<Element> predicate) {
-        return filterEnclosedElements(predicate, true);
+    private Stream<TypeElement> filterIncludedTypes(Predicate<TypeElement> predicate) {
+        return context.getIncludedTypes(packageElement).stream().filter(predicate);
     }
 
-    private Stream<Element> filterEnclosedElements(Predicate<Element> predicate, boolean filter) {
-        EnclosedElementsIterator it = new EnclosedElementsIterator(packageElement, filter);
-        return StreamSupport
-                .stream(Spliterators.spliteratorUnknownSize(it, Spliterator.ORDERED), false)
-                .filter(e -> e instanceof TypeElement te
-                        && !context.isSynthetic(te)
-                        && (!filter || context.shouldDocument(te)))
-                .filter(predicate);
+    private Stream<TypeElement> allEnclosedTypes() {
+        List<TypeElement> result = new ArrayList<>();
+        Deque<TypeElement> queue =
+                new ArrayDeque<>(ElementFilter.typesIn(packageElement.getEnclosedElements()));
+        while (!queue.isEmpty()) {
+            TypeElement current = queue.pop();
+            if (!context.isSynthetic(current)) {
+                result.add(current);
+            }
+            queue.addAll(ElementFilter.typesIn(current.getEnclosedElements()));
+        }
+        return result.stream();
     }
 
     @Override
     @Used(implemented = true)
     public ClassDoc[] ordinaryClasses() {
         if (ordinaryClasses == null) {
-            ordinaryClasses = filterEnclosedElements(
+            ordinaryClasses = filterIncludedTypes(
                     e -> e.getKind() == ElementKind.CLASS || e.getKind() == ElementKind.RECORD)
-                    .map(e -> ClassDocImpl.create((TypeElement) e, context))
+                    .map(e -> ClassDocImpl.create(e, context))
                     .filter(cls -> !cls.isError() && !cls.isException())
                     .toArray(ClassDocImpl[]::new);
         }
@@ -226,8 +232,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public ClassDoc[] exceptions() {
         if (exceptions == null) {
-            exceptions = filterEnclosedElements(e -> e.getKind() == ElementKind.CLASS)
-                    .map(element -> ClassDocImpl.create((TypeElement) element, context))
+            exceptions = filterIncludedTypes(e -> e.getKind() == ElementKind.CLASS)
+                    .map(element -> ClassDocImpl.create(element, context))
                     .filter(ClassDocImpl::isException)
                     .toArray(ClassDocImpl[]::new);
         }
@@ -238,8 +244,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public ClassDoc[] errors() {
         if (errors == null) {
-            errors = filterEnclosedElements(e -> e.getKind() == ElementKind.CLASS)
-                    .map(element -> ClassDocImpl.create((TypeElement) element, context))
+            errors = filterIncludedTypes(e -> e.getKind() == ElementKind.CLASS)
+                    .map(element -> ClassDocImpl.create(element, context))
                     .filter(ClassDocImpl::isError)
                     .toArray(ClassDocImpl[]::new);
         }
@@ -250,8 +256,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public ClassDoc[] enums() {
         if (enums == null) {
-            enums = filterEnclosedElements(e -> e.getKind() == ElementKind.ENUM)
-                    .map(element -> ClassDocImpl.create((TypeElement) element, context))
+            enums = filterIncludedTypes(e -> e.getKind() == ElementKind.ENUM)
+                    .map(element -> ClassDocImpl.create(element, context))
                     .toArray(ClassDocImpl[]::new);
         }
         return enums;
@@ -261,8 +267,8 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public ClassDoc[] interfaces() {
         if (interfaces == null) {
-            interfaces = filterEnclosedElements(e -> e.getKind() == ElementKind.INTERFACE)
-                    .map(element -> ClassDocImpl.create((TypeElement) element, context))
+            interfaces = filterIncludedTypes(e -> e.getKind() == ElementKind.INTERFACE)
+                    .map(element -> ClassDocImpl.create(element, context))
                     .toArray(ClassDocImpl[]::new);
         }
         return interfaces;
@@ -272,9 +278,9 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
     @Used(implemented = true)
     public AnnotationTypeDoc[] annotationTypes() {
         if (annotationTypes == null) {
-            annotationTypes = filterEnclosedElements(
+            annotationTypes = filterIncludedTypes(
                     e -> e.getKind() == ElementKind.ANNOTATION_TYPE)
-                    .map(element -> AnnotationTypeDocImpl.create((TypeElement) element, context))
+                    .map(element -> AnnotationTypeDocImpl.create(element, context))
                     .toArray(AnnotationTypeDocImpl[]::new);
         }
         return annotationTypes;
@@ -323,35 +329,5 @@ class PackageDocImpl extends DocImpl<PackageElement> implements PackageDoc {
             qualifiedName = packageElement.getQualifiedName().toString();
         }
         return qualifiedName;
-    }
-
-    private final class EnclosedElementsIterator implements Iterator<Element> {
-
-        private final Deque<Element> queue;
-        private final boolean filter;
-
-        public EnclosedElementsIterator(Element element, boolean filter) {
-            this.queue = new ArrayDeque<>(element.getEnclosedElements());
-            this.filter = filter;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return !queue.isEmpty();
-        }
-
-        @Override
-        public Element next() {
-            Element current = queue.pop();
-            // Match legacy PackageDocImpl.getClasses(true) -> ClassDocImpl.addAllClasses(list, true)
-            // by not descending into non-documented types when filtering; allClasses(false) passes
-            // filter = false and still traverses all enclosed types.
-            if (current instanceof TypeElement te
-                    && (!filter || context.shouldDocument(te))
-                    && !current.getEnclosedElements().isEmpty()) {
-                queue.addAll(current.getEnclosedElements());
-            }
-            return current;
-        }
     }
 }

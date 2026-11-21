@@ -24,6 +24,7 @@ import com.sun.source.doctree.SerialFieldTree;
 import com.sun.source.doctree.ThrowsTree;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +33,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -40,6 +42,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.WildcardType;
+import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.SimpleElementVisitor14;
 import javax.tools.JavaFileObject;
@@ -54,27 +57,55 @@ class Context {
     public final DocletEnvironment environment;
     public final Caches caches = new Caches();
     public final DocletElementUtils docletElementUtils;
-    private Map<PackageElement, List<TypeElement>> includedTopLevelTypesByPackage;
+
+    /**
+     * Lazily populated map of all documented (included) types in each package, including nested
+     * types discovered via top-down {@link #shouldDocument(TypeElement)} traversal from top-level
+     * elements in {@link DocletEnvironment#getIncludedElements()}.
+     */
+    private Map<PackageElement, List<TypeElement>> includedTypesByPackage;
 
     public Doc obtain(Element element) {
         return OBTAIN_VISITOR.visit(element, this);
     }
 
-    List<TypeElement> getIncludedTopLevelTypes(PackageElement packageElement) {
-        if (includedTopLevelTypesByPackage == null) {
+    /**
+     * Returns all documented types in {@code packageElement}, including nested types reachable via
+     * documented enclosing types.
+     */
+    List<TypeElement> getIncludedTypes(PackageElement packageElement) {
+        if (includedTypesByPackage == null) {
             Map<PackageElement, List<TypeElement>> typesByPackage = new HashMap<>();
+            Set<TypeElement> visitedTypes = new HashSet<>();
+            Elements elementUtils = environment.getElementUtils();
             for (Element element : environment.getIncludedElements()) {
                 if (element instanceof TypeElement typeElement
-                        && typeElement.getEnclosingElement()
-                                instanceof PackageElement enclosingPackage) {
-                    typesByPackage
-                            .computeIfAbsent(enclosingPackage, ignored -> new ArrayList<>())
-                            .add(typeElement);
+                        && typeElement.getNestingKind() == NestingKind.TOP_LEVEL) {
+                    PackageElement enclosingPackage = elementUtils.getPackageOf(typeElement);
+                    if (enclosingPackage != null) {
+                        List<TypeElement> packageTypes =
+                                typesByPackage.computeIfAbsent(
+                                        enclosingPackage, ignored -> new ArrayList<>());
+                        addDocumentedTypes(typeElement, visitedTypes, packageTypes);
+                    }
                 }
             }
-            includedTopLevelTypesByPackage = typesByPackage;
+            includedTypesByPackage = typesByPackage;
         }
-        return includedTopLevelTypesByPackage.getOrDefault(packageElement, List.of());
+        return includedTypesByPackage.getOrDefault(packageElement, List.of());
+    }
+
+    private void addDocumentedTypes(
+            TypeElement typeElement,
+            Set<TypeElement> visitedTypes,
+            List<TypeElement> packageTypes) {
+        if (!shouldDocument(typeElement) || !visitedTypes.add(typeElement)) {
+            return;
+        }
+        packageTypes.add(typeElement);
+        for (TypeElement nested : ElementFilter.typesIn(typeElement.getEnclosedElements())) {
+            addDocumentedTypes(nested, visitedTypes, packageTypes);
+        }
     }
 
     public static class Caches {

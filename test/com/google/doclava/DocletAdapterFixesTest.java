@@ -287,6 +287,67 @@ public final class DocletAdapterFixesTest {
   }
 
   @Test
+  public void docsAndHiddenPackages_doNotCompleteUnreferencedSiblingClasses() throws Exception {
+    Path srcRoot = tempFolder.newFolder("docs_siblings_src").toPath();
+    writeFile(srcRoot.resolve("test/hiddenbase/package.html"), "<body>{@hide}</body>\n");
+    writeFile(
+        srcRoot.resolve("test/hiddenbase/HiddenBase.java"),
+        """
+        package test.hiddenbase;
+        public class HiddenBase {
+          public HiddenBase() {}
+        }
+        """);
+    // Unreferenced invalid siblings in both a non-included hidden package and an included package.
+    // PackageInfo.isHidden(), HTML package rendering, and unqualified {@link} lookup must not call
+    // PackageElement.getEnclosedElements() and trigger compilation of these files.
+    writeFile(
+        srcRoot.resolve("test/hiddenbase/BrokenHiddenSibling.java"),
+        """
+        package test.hiddenbase;
+        public class BrokenHiddenSibling {
+          this is not valid java syntax
+        }
+        """);
+    writeFile(
+        srcRoot.resolve("test/pubpkg/BrokenIncludedSibling.java"),
+        """
+        package test.pubpkg;
+        public class BrokenIncludedSibling {
+          this is not valid java syntax
+        }
+        """);
+    Path publicSubSource = srcRoot.resolve("test/pubpkg/PublicSub.java");
+    writeFile(
+        publicSubSource,
+        """
+        package test.pubpkg;
+        import test.hiddenbase.HiddenBase;
+        /** Links to {@link PublicSub}. */
+        public class PublicSub extends HiddenBase {
+          public PublicSub() {}
+        }
+        """);
+
+    Path apiFile = tempFolder.getRoot().toPath().resolve("docs_siblings_api.txt");
+    Path docsDir = tempFolder.newFolder("docs_siblings_docs").toPath();
+    runWithDocs(
+        docsDir,
+        Arrays.asList(
+            "-sourcepath",
+            srcRoot.toString(),
+            "-api",
+            apiFile.toString(),
+            "-error",
+            "101",
+            publicSubSource.toString()));
+
+    String api = Files.readString(apiFile, UTF_8);
+    assertTrue("Expected PublicSub in api.txt:\n" + api, api.contains("class PublicSub"));
+    assertFalse("Unexpected HiddenBase in api.txt:\n" + api, api.contains("HiddenBase"));
+  }
+
+  @Test
   public void primitiveVoidAndArrayClassLiteralsInAnnotations_succeed() throws Exception {
     Path srcRoot = tempFolder.newFolder("class_literals_src").toPath();
     writeFile(
